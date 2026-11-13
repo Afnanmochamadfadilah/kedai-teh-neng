@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Selamat Datang - Kedai Teh Neng</title>
+  <script>
+    try { document.documentElement.setAttribute('data-bs-theme', localStorage.getItem('kt3_theme') || 'light'); } catch (e) {}
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="page-portal">
+
+  <div class="bg-anim" aria-hidden="true">
+    <span style="--l:6%;--s:46px;--d:34s;--dl:-4s"></span>
+    <span style="--l:16%;--s:22px;--d:28s;--dl:-16s"></span>
+    <span style="--l:27%;--s:64px;--d:42s;--dl:-9s"></span>
+    <span style="--l:38%;--s:30px;--d:31s;--dl:-22s"></span>
+    <span style="--l:49%;--s:54px;--d:38s;--dl:-2s"></span>
+    <span style="--l:60%;--s:26px;--d:29s;--dl:-13s"></span>
+    <span style="--l:71%;--s:70px;--d:45s;--dl:-27s"></span>
+    <span style="--l:82%;--s:36px;--d:33s;--dl:-7s"></span>
+    <span style="--l:92%;--s:48px;--d:40s;--dl:-19s"></span>
+    <span class="leaf" style="--l:10%;--s:28px;--d:46s;--dl:-10s">🍃</span>
+    <span class="leaf" style="--l:34%;--s:24px;--d:52s;--dl:-30s">🍃</span>
+    <span class="leaf" style="--l:57%;--s:32px;--d:48s;--dl:-18s">🍃</span>
+    <span class="leaf" style="--l:78%;--s:26px;--d:54s;--dl:-5s">🍃</span>
+  </div>
+
+  <div class="marquee-bar"><span data-running-text></span></div>
+
+  <div class="top-login">
+    <button type="button" class="btn btn-outline-secondary gear-btn" aria-label="Pengaturan" title="Pengaturan"><span class="gear-icon">⚙️</span></button>
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalKaryawan">Karyawan</button>
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalOwner">Owner</button>
+  </div>
+
+  <header class="hero">
+    <h1 data-store-name>Kedai Teh Neng</h1>
+    <p class="text-secondary mb-0">Pesan mudah dari meja atau dari rumah — tanpa antre!</p>
+  </header>
+
+  <main class="container pb-5">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-8 col-lg-5">
+        <form class="card start-card p-4" id="formMulai" autocomplete="off">
+          <div class="text-center mb-3">
+            <div class="icon">🍵</div>
+            <h4 class="fw-bold mb-0">Mulai Pesan</h4>
+            <small class="text-secondary">Isi data berikut untuk membuka menu</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nama Pemesan</label>
+            <input type="text" id="inNama" class="form-control form-control-lg" placeholder="Contoh: Budi" required maxlength="40" autocomplete="off">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nomor WhatsApp (WA)</label>
+            <input type="tel" id="inWa" class="form-control form-control-lg" placeholder="Contoh: 081234567890" required maxlength="16" inputmode="numeric" autocomplete="off">
+            <small class="text-secondary">Info pesanan akan dikirim kasir ke WhatsApp Anda.</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold d-block">Tipe Layanan</label>
+            <div class="btn-group w-100" role="group">
+              <input type="radio" class="btn-check" name="tipe" id="tpDinein" value="dinein" checked>
+              <label class="btn btn-outline-teh" for="tpDinein">🍽️ Makan Di Sini</label>
+              <input type="radio" class="btn-check" name="tipe" id="tpBungkus" value="bungkus">
+              <label class="btn btn-outline-teh" for="tpBungkus">🥡 Dibungkus</label>
+              <input type="radio" class="btn-check" name="tipe" id="tpDelivery" value="delivery">
+              <label class="btn btn-outline-teh" for="tpDelivery">🛵 Delivery</label>
+            </div>
+          </div>
+
+          <div class="mb-3" id="grpMeja">
+            <label class="form-label fw-semibold">Nomor Meja</label>
+            <input type="number" id="inMeja" class="form-control form-control-lg" placeholder="Contoh: 5" min="1" max="999" required>
+          </div>
+
+          <div id="grpDelivery" class="d-none">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Alamat Lengkap Pengiriman</label>
+              <textarea id="inAlamat" class="form-control" rows="3" maxlength="250"
+                placeholder="Jalan, nomor rumah, RT/RW, patokan, kelurahan"></textarea>
+            </div>
+            <div class="alert alert-info py-2 small">Pesanan Delivery wajib dibayar melalui Transfer QRIS.</div>
+          </div>
+
+          <button type="submit" class="btn btn-teh btn-lg w-100">Mulai Pesan</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" onclick="openHistory({})">
+            📜 Cek Riwayat &amp; Struk Pesanan Saya
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="modalKaryawan" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <form class="modal-content" id="formKaryawan" autocomplete="off">
+        <div class="modal-header">
+          <h5 class="modal-title">Login Karyawan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" id="karUser" name="kt-k-user" class="form-control" required
+                   autocomplete="off" autocapitalize="off" spellcheck="false" readonly>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Password</label>
+            <input type="password" id="karPass" name="kt-k-pass" class="form-control" required
+                   autocomplete="new-password" readonly>
+          </div>
+          <div class="login-hint">Default: Afnan123 / 12345</div>
+          <div class="alert alert-danger d-none py-2 mt-3 mb-0" id="karErr">Username atau password salah.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-teh w-100">Masuk</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal fade" id="modalOwner" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <form class="modal-content" id="formOwner" autocomplete="off">
+        <div class="modal-header">
+          <h5 class="modal-title">Login Owner</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" id="ownUser" name="kt-o-user" class="form-control" required
+                   autocomplete="off" autocapitalize="off" spellcheck="false" readonly>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Password</label>
+            <input type="password" id="ownPass" name="kt-o-pass" class="form-control" required
+                   autocomplete="new-password" readonly>
+          </div>
+          <div class="login-hint">Default: admin / ADMIN</div>
+          <div class="alert alert-danger d-none py-2 mt-3 mb-0" id="ownErr">Username atau password salah.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-teh w-100">Masuk</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="text-center text-secondary small pb-4">
+    &copy; <span data-store-name>Kedai Teh Neng</span> — Sistem Ordering Digital
+  </footer>
+
+  <div class="print-only" id="receiptArea"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/script.js"></script>
+  <script>
+    const inMeja = document.getElementById('inMeja');
+    const inAlamat = document.getElementById('inAlamat');
+    const inWa = document.getElementById('inWa');
+
+    function updateTipe() {
+      const tipe = document.querySelector('input[name="tipe"]:checked').value;
+      const isDelivery = tipe === 'delivery';
+      document.getElementById('grpMeja').classList.toggle('d-none', isDelivery);
+      document.getElementById('grpDelivery').classList.toggle('d-none', !isDelivery);
+      inMeja.required = !isDelivery;
+      inAlamat.required = isDelivery;
+    }
+    document.querySelectorAll('input[name="tipe"]').forEach(r => r.addEventListener('change', updateTipe));
+    updateTipe();
+
+    document.getElementById('formMulai').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const nama = document.getElementById('inNama').value.trim();
+      const tipe = document.querySelector('input[name="tipe"]:checked').value;
+      if (!nama) return;
+
+      if (!validWa(inWa.value)) {
+        alert('Nomor WhatsApp tidak valid. Gunakan format 08xxxxxxxxxx atau 628xxxxxxxxxx.');
+        inWa.focus();
+        return;
+      }
+
+      const p = new URLSearchParams();
+      p.set('nama', nama);
+      p.set('wa', normalizeWa(inWa.value));
+      p.set('tipe', tipe);
+
+      if (tipe === 'delivery') {
+        const alamat = inAlamat.value.trim();
+        if (alamat.length < 10) { alert('Mohon isi alamat pengiriman dengan lengkap.'); return; }
+        p.set('alamat', alamat);
+      } else {
+        const meja = String(inMeja.value).trim();
+        if (!meja) return;
+        p.set('meja', meja.padStart(2, '0'));
+      }
+      window.location.href = 'pembeli.html?' + p.toString();
+    });
+
+    function resetLoginForm(formId, errId) {
+      const f = document.getElementById(formId);
+      f.reset();
+      f.querySelectorAll('input').forEach(i => {
+        i.value = '';
+        i.setAttribute('readonly', 'readonly');
+      });
+      document.getElementById(errId).classList.add('d-none');
+    }
+    function setupLoginModal(modalId, formId, errId) {
+      const m = document.getElementById(modalId);
+      const f = document.getElementById(formId);
+      f.querySelectorAll('input').forEach(i => {
+        i.addEventListener('focus', () => i.removeAttribute('readonly'));
+        i.addEventListener('touchstart', () => i.removeAttribute('readonly'), { passive: true });
+      });
+      m.addEventListener('show.bs.modal', () => resetLoginForm(formId, errId));
+      m.addEventListener('hidden.bs.modal', () => resetLoginForm(formId, errId));
+    }
+    setupLoginModal('modalKaryawan', 'formKaryawan', 'karErr');
+    setupLoginModal('modalOwner', 'formOwner', 'ownErr');
+
+    function resetAllLogin() {
+      resetLoginForm('formKaryawan', 'karErr');
+      resetLoginForm('formOwner', 'ownErr');
+    }
+    resetAllLogin();
+    window.addEventListener('pageshow', resetAllLogin);
+
+    document.getElementById('formKaryawan').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const ok = login('karyawan', document.getElementById('karUser').value, document.getElementById('karPass').value);
+      if (ok) window.location.href = 'dapur.html';
+      else document.getElementById('karErr').classList.remove('d-none');
+    });
+    document.getElementById('formOwner').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const ok = login('owner', document.getElementById('ownUser').value, document.getElementById('ownPass').value);
+      if (ok) window.location.href = 'owner.html';
+      else document.getElementById('ownErr').classList.remove('d-none');
+    });
+  </script>
+</body>
+</html>

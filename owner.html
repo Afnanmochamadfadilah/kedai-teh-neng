@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panel Owner - Kedai Teh Neng</title>
+  <script>
+    try { document.documentElement.setAttribute('data-bs-theme', localStorage.getItem('kt3_theme') || 'light'); } catch (e) {}
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <nav class="navbar navbar-teh">
+    <div class="container">
+      <span class="navbar-brand fw-bold mb-0">👑 Panel Owner — <span data-store-name>Kedai Teh Neng</span></span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-white small d-none d-md-inline" id="userInfo"></span>
+        <button type="button" class="btn btn-sm btn-outline-light gear-btn" aria-label="Pengaturan" title="Pengaturan"><span class="gear-icon">⚙️</span></button>
+        <button type="button" class="btn btn-sm btn-light" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4 screen-only">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h4 class="fw-bold mb-0">📊 Ringkasan &amp; Laporan Omzet</h4>
+      <span class="text-secondary small">Buka pengaturan (ikon roda gigi) untuk mengelola menu, karyawan, dan toko</span>
+    </div>
+
+    <div class="card p-3 mb-4">
+      <div class="d-flex flex-wrap align-items-center gap-2 period-bar">
+        <strong class="me-2">📅 Periode:</strong>
+        <button type="button" class="btn btn-sm btn-outline-teh active" id="pb-all" onclick="setPeriod('all')">Semua Waktu</button>
+        <button type="button" class="btn btn-sm btn-outline-teh" id="pb-today" onclick="setPeriod('today')">Hari Ini</button>
+        <button type="button" class="btn btn-sm btn-outline-teh" id="pb-yesterday" onclick="setPeriod('yesterday')">Kemarin</button>
+        <input type="date" id="inDate" class="form-control form-control-sm" style="max-width:170px" aria-label="Pilih tanggal">
+        <span class="ms-auto text-secondary small">Menampilkan: <strong id="periodLabel">Semua Waktu</strong></span>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card stat-card bg-grad-green p-3">
+          <div class="small">OMZET PERIODE (Pesanan Selesai)</div>
+          <div class="fs-3 fw-bold" id="omzet">Rp 0</div>
+          <div class="small" id="omzetSub"></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card stat-card bg-grad-orange p-3">
+          <div class="small">PESANAN MASUK PERIODE</div>
+          <div class="fs-3 fw-bold" id="totalPesanan">0</div>
+          <div class="small" id="pesananSub"></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card stat-card bg-grad-blue p-3">
+          <div class="small">TUNAI / QRIS</div>
+          <div class="fs-5 fw-bold" id="splitBayar">-</div>
+          <div class="small" id="splitSub"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 mb-4">
+      <button class="btn btn-teh" onclick="printPage()">🖨️ Cetak Laporan Omzet (PDF)</button>
+      <button class="btn btn-outline-danger" onclick="if(resetOrders()) renderStats()">Reset Data Pesanan</button>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="card p-3">
+          <h5 class="fw-bold mb-3">📊 Perbandingan Harian: Hari Ini vs Kemarin</h5>
+          <div class="row g-3" id="compareBox"></div>
+        </div>
+      </div>
+
+      <div class="col-lg-7">
+        <div class="card p-3 h-100">
+          <h5 class="fw-bold mb-3">🗓️ Riwayat Omzet per Tanggal</h5>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Tanggal</th><th class="text-end">Pesanan</th><th class="text-end">Tunai</th><th class="text-end">QRIS</th><th class="text-end">Omzet</th></tr></thead>
+              <tbody id="dateBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card p-3 h-100">
+          <h5 class="fw-bold mb-3">🏆 Top Menu Terlaris</h5>
+          <div id="topMenuBox"></div>
+          <hr>
+          <h6 class="fw-bold">🌶️ Topping Seblak Terfavorit</h6>
+          <div id="topToppingBox" class="small"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="print-only" id="printArea"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/script.js"></script>
+  <script>
+    if (!requireAuth('owner')) { throw new Error('Unauthorized'); }
+    document.getElementById('userInfo').textContent = 'Login: ' + getSession().user;
+
+    let filterMode = 'all';
+    let filterDate = '';
+
+    registerSettingsPages([
+      {
+        id: 'menu', icon: '🍽️', title: 'Kelola Menu, Harga & Stok',
+        desc: 'Tambah, edit, dan atur stok menu & topping', wide: true, render: renderMenuPage
+      },
+      {
+        id: 'karyawan', icon: '👥', title: 'Kelola Akun Karyawan',
+        desc: 'Tambah akun, ubah password, dan hapus akun', wide: true, render: renderKaryawanPage
+      },
+      {
+        id: 'toko', icon: '🏪', title: 'Pengaturan Toko & Keamanan',
+        desc: 'Nama toko, running text, harga dasar seblak, QRIS, dan password owner', render: renderTokoPage
+      }
+    ]);
+
+    function periodLabel() {
+      if (filterMode === 'today') return 'Hari Ini (' + fmtDateKey(todayKey()) + ')';
+      if (filterMode === 'yesterday') return 'Kemarin (' + fmtDateKey(yesterdayKey()) + ')';
+      if (filterMode === 'date') return fmtDateKey(filterDate);
+      return 'Semua Waktu';
+    }
+    function updatePeriodButtons() {
+      ['all', 'today', 'yesterday'].forEach(m =>
+        document.getElementById('pb-' + m).classList.toggle('active', filterMode === m));
+      document.getElementById('periodLabel').textContent = periodLabel();
+    }
+    function setPeriod(mode) {
+      filterMode = mode;
+      filterDate = '';
+      document.getElementById('inDate').value = '';
+      updatePeriodButtons();
+      renderStats();
+    }
+    document.getElementById('inDate').addEventListener('change', function () {
+      if (this.value) { filterMode = 'date'; filterDate = this.value; }
+      else { filterMode = 'all'; filterDate = ''; }
+      updatePeriodButtons();
+      renderStats();
+    });
+
+    function deltaHtml(today, yest) {
+      if (!today && !yest) return '<span class="text-secondary">—</span>';
+      if (!yest) return '<span class="delta-up">▲ Baru</span>';
+      const pct = (today - yest) / yest * 100;
+      if (pct === 0) return '<span class="text-secondary">= Sama</span>';
+      return pct > 0
+        ? `<span class="delta-up">▲ ${pct.toFixed(1)}%</span>`
+        : `<span class="delta-down">▼ ${Math.abs(pct).toFixed(1)}%</span>`;
+    }
+
+    function renderStats() {
+      const all = getOrders();
+      const orders = filterOrdersByPeriod(all, filterMode, filterDate);
+      const s = summarize(orders);
+      const label = periodLabel();
+
+      document.getElementById('omzet').textContent = rupiah(s.total);
+      document.getElementById('omzetSub').textContent = s.jumlahSelesai + ' pesanan selesai';
+      document.getElementById('totalPesanan').textContent = s.jumlahSemua;
+      document.getElementById('pesananSub').textContent = (s.jumlahSemua - s.jumlahSelesai) + ' masih diproses';
+      document.getElementById('splitBayar').textContent = rupiah(s.tunai) + ' / ' + rupiah(s.qris);
+      document.getElementById('splitSub').textContent =
+        'Dine-in ' + rupiah(s.dinein) + ' • Bungkus ' + rupiah(s.bungkus) + ' • Delivery ' + rupiah(s.delivery);
+
+      const sT = summarize(filterOrdersByPeriod(all, 'today'));
+      const sY = summarize(filterOrdersByPeriod(all, 'yesterday'));
+      document.getElementById('compareBox').innerHTML = `
+        <div class="col-md-6"><div class="compare-box">
+          <div class="small text-secondary">Hari Ini (${fmtDateKey(todayKey())})</div>
+          <div class="fs-4 fw-bold price">${rupiah(sT.total)}</div>
+          <div class="small">${sT.jumlahSelesai} pesanan selesai</div>
+        </div></div>
+        <div class="col-md-6"><div class="compare-box">
+          <div class="small text-secondary">Kemarin (${fmtDateKey(yesterdayKey())})</div>
+          <div class="fs-4 fw-bold">${rupiah(sY.total)}</div>
+          <div class="small">${sY.jumlahSelesai} pesanan selesai</div>
+        </div></div>
+        <div class="col-12 text-center">
+          Omzet: ${deltaHtml(sT.total, sY.total)} &nbsp;|&nbsp; Jumlah pesanan: ${deltaHtml(sT.jumlahSelesai, sY.jumlahSelesai)}
+        </div>`;
+
+      const byDate = groupByDate(orders);
+      document.getElementById('dateBody').innerHTML = byDate.length ? byDate.map(g => `
+        <tr><td>${fmtDateKey(g.tanggal)}</td><td class="text-end">${g.jumlah}</td>
+        <td class="text-end">${rupiah(g.tunai)}</td><td class="text-end">${rupiah(g.qris)}</td>
+        <td class="text-end fw-bold">${rupiah(g.total)}</td></tr>`).join('') + `
+        <tr class="table-active"><td><strong>Total</strong></td><td class="text-end"><strong>${s.jumlahSelesai}</strong></td>
+        <td class="text-end"><strong>${rupiah(s.tunai)}</strong></td><td class="text-end"><strong>${rupiah(s.qris)}</strong></td>
+        <td class="text-end"><strong>${rupiah(s.total)}</strong></td></tr>`
+        : '<tr><td colspan="5" class="text-center text-secondary">Belum ada transaksi selesai pada periode ini.</td></tr>';
+
+      const tm = topMenu(orders).slice(0, 8);
+      const maxQty = tm.length ? tm[0].qty : 1;
+      document.getElementById('topMenuBox').innerHTML = tm.length ? tm.map((m, i) => `
+        <div class="rank-row">
+          <div class="d-flex justify-content-between">
+            <span><strong>${i + 1}.</strong> ${esc(m.nama)}</span>
+            <span><strong>${m.qty}</strong> porsi • ${rupiah(m.omzet)}</span>
+          </div>
+          <div class="rank-bar" style="width:${Math.max(6, Math.round(m.qty / maxQty * 100))}%"></div>
+        </div>`).join('') : '<p class="text-secondary mb-0">Belum ada data penjualan.</p>';
+
+      const tt = topToppings(orders).slice(0, 5);
+      document.getElementById('topToppingBox').innerHTML = tt.length
+        ? tt.map((t, i) => `<div class="d-flex justify-content-between"><span>${i + 1}. ${esc(t.nama)}</span><strong>${t.qty}×</strong></div>`).join('')
+        : '<span class="text-secondary">Belum ada data topping.</span>';
+
+      renderPrintReport(orders, s, byDate, tm, label);
+    }
+
+    function renderPrintReport(orders, s, byDate, tm, label) {
+      const done = orders.filter(o => o.status === 'selesai').sort((a, b) => a.ts - b.ts);
+      document.getElementById('printArea').innerHTML = `
+        <div class="print-title">
+          <h3>${esc(getStoreName())}</h3>
+          <h5>LAPORAN OMZET — ${esc(label)}</h5>
+          <div>Dicetak: ${new Date().toLocaleString('id-ID')}</div>
+        </div>
+        <table class="tbl-compact">
+          <thead><tr>
+            <th>No</th><th>Waktu</th><th>Layanan</th><th>Nama</th><th>Item</th><th>Bayar</th><th style="text-align:right">Total</th>
+          </tr></thead>
+          <tbody>
+            ${done.map(o => `<tr>
+              <td>#${String(o.no).padStart(3, '0')}</td>
+              <td>${fmtShort(o.ts)}</td>
+              <td>${esc(tipeShort(o))}</td>
+              <td>${esc(o.nama)}</td>
+              <td>${esc(itemsShort(o))}</td>
+              <td>${o.metode === 'qris' ? 'QRIS' : 'Tunai'}</td>
+              <td style="text-align:right">${rupiah(o.total)}</td></tr>`).join('')
+              || '<tr><td colspan="7" style="text-align:center">Belum ada transaksi selesai</td></tr>'}
+          </tbody>
+        </table>
+
+        <table class="tbl-compact summary-tbl">
+          <tbody>
+            <tr><td>Pesanan masuk</td><td style="text-align:right">${s.jumlahSemua}</td>
+                <td>Makan di sini (${s.cDinein})</td><td style="text-align:right">${rupiah(s.dinein)}</td></tr>
+            <tr><td>Pesanan selesai</td><td style="text-align:right">${s.jumlahSelesai}</td>
+                <td>Dibungkus (${s.cBungkus})</td><td style="text-align:right">${rupiah(s.bungkus)}</td></tr>
+            <tr><td>Omzet tunai</td><td style="text-align:right">${rupiah(s.tunai)}</td>
+                <td>Delivery (${s.cDelivery})</td><td style="text-align:right">${rupiah(s.delivery)}</td></tr>
+            <tr><td>Omzet QRIS</td><td style="text-align:right">${rupiah(s.qris)}</td>
+                <td><strong>TOTAL OMZET</strong></td><td style="text-align:right"><strong>${rupiah(s.total)}</strong></td></tr>
+          </tbody>
+        </table>
+
+        ${byDate.length > 1 ? `
+        <div style="margin-top:8px"><strong style="font-size:11px">Rekap per Tanggal</strong></div>
+        <table class="tbl-compact">
+          <thead><tr><th>Tanggal</th><th style="text-align:right">Pesanan</th><th style="text-align:right">Tunai</th><th style="text-align:right">QRIS</th><th style="text-align:right">Omzet</th></tr></thead>
+          <tbody>${byDate.map(g => `<tr><td>${fmtDateKey(g.tanggal)}</td><td style="text-align:right">${g.jumlah}</td>
+            <td style="text-align:right">${rupiah(g.tunai)}</td><td style="text-align:right">${rupiah(g.qris)}</td>
+            <td style="text-align:right">${rupiah(g.total)}</td></tr>`).join('')}</tbody>
+        </table>` : ''}
+
+        ${tm.length ? `
+        <div style="margin-top:8px"><strong style="font-size:11px">Top Menu Terlaris</strong></div>
+        <table class="tbl-compact">
+          <thead><tr><th>#</th><th>Menu</th><th style="text-align:right">Terjual</th><th style="text-align:right">Omzet</th></tr></thead>
+          <tbody>${tm.slice(0, 5).map((m, i) => `<tr><td>${i + 1}</td><td>${esc(m.nama)}</td>
+            <td style="text-align:right">${m.qty}</td><td style="text-align:right">${rupiah(m.omzet)}</td></tr>`).join('')}</tbody>
+        </table>` : ''}`;
+    }
+
+    function categoryOptions(selected) {
+      return OWNER_CATEGORIES.map(k =>
+        `<option value="${esc(k)}" ${k === selected ? 'selected' : ''}>${esc(k)}</option>`).join('');
+    }
+
+    function renderMenuPage(el) {
+      el.innerHTML = `
+        <div class="card p-3 mb-3">
+          <h5 class="fw-bold mb-3">➕ Tambah Menu / Topping Baru</h5>
+          <form id="formMenu" class="row g-2" autocomplete="off">
+            <div class="col-md-4"><input type="text" name="nama" class="form-control" placeholder="Nama menu / topping" required></div>
+            <div class="col-md-2"><input type="number" name="harga" class="form-control" placeholder="Harga" min="0" required></div>
+            <div class="col-md-2"><input type="number" name="stok" class="form-control" placeholder="Stok" min="0" required></div>
+            <div class="col-md-4"><select name="kategori" class="form-select">${categoryOptions('')}</select></div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Foto Produk (opsional)</label>
+              <input type="file" name="fotoFile" accept="image/*" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Atau URL Foto</label>
+              <input type="url" name="fotoUrl" class="form-control form-control-sm" placeholder="URL foto (opsional)">
+            </div>
+            <div class="col-12 d-grid"><button class="btn btn-teh">Tambah</button></div>
+          </form>
+        </div>
+
+        <div class="card p-3 mb-3 d-none border-success" id="editCard">
+          <h5 class="fw-bold mb-3">✏️ Edit Menu / Topping</h5>
+          <form id="formEdit" class="row g-2" autocomplete="off">
+            <input type="hidden" name="id">
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Nama Produk</label>
+              <input type="text" name="nama" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Kategori</label>
+              <select name="kategori" class="form-select">${categoryOptions('')}</select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Harga</label>
+              <input type="number" name="harga" class="form-control" min="0" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Jumlah Stok</label>
+              <input type="number" name="stok" class="form-control" min="0" required>
+            </div>
+            <div class="col-12 d-flex align-items-center gap-3">
+              <div>
+                <div class="small text-secondary mb-1">Foto saat ini</div>
+                <img id="editPreview" class="thumb-lg" alt="">
+              </div>
+              <div class="flex-grow-1">
+                <label class="form-label small mb-1">Ganti Foto Produk</label>
+                <input type="file" name="fotoFile" accept="image/*" class="form-control form-control-sm mb-2">
+                <input type="url" name="fotoUrl" class="form-control form-control-sm mb-1" placeholder="URL foto (opsional)">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="fotoHapus" id="fotoHapus">
+                  <label class="form-check-label small" for="fotoHapus">Hapus foto (gunakan gambar bawaan)</label>
+                </div>
+                <small class="text-secondary">Kosongkan jika tidak ingin mengganti foto.</small>
+              </div>
+            </div>
+            <div class="col-12 d-flex gap-2 justify-content-end">
+              <button type="button" class="btn btn-outline-secondary" id="editCancel">Batal</button>
+              <button type="submit" class="btn btn-teh">Simpan</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card p-3">
+          <h5 class="fw-bold mb-3">📋 Daftar Menu, Harga &amp; Stok</h5>
+          <div class="row g-2 mb-3">
+            <div class="col-md-5"><input type="search" id="menuSearch" class="form-control form-control-sm" placeholder="🔍 Cari menu / topping…"></div>
+            <div class="col-md-4">
+              <select id="filterKat" class="form-select form-select-sm">
+                <option value="">Semua kategori</option>${categoryOptions('')}
+              </select>
+            </div>
+            <div class="col-md-3 text-md-end text-secondary small align-self-center" id="menuCount"></div>
+          </div>
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead><tr><th>Foto</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Stok</th><th></th></tr></thead>
+              <tbody id="menuBody"></tbody>
+            </table>
+          </div>
+        </div>`;
+
+      const formAdd = el.querySelector('#formMenu');
+      const formEdit = el.querySelector('#formEdit');
+      const editCard = el.querySelector('#editCard');
+      const preview = el.querySelector('#editPreview');
+      const body = el.querySelector('#menuBody');
+      let editPhoto = '';
+      let editCurrent = '';
+
+      function renderRows() {
+        const f = el.querySelector('#filterKat').value;
+        const q = el.querySelector('#menuSearch').value.trim().toLowerCase();
+        const list = getMenu()
+          .filter(m => !f || m.kategori === f)
+          .filter(m => !q || m.nama.toLowerCase().includes(q))
+          .sort((a, b) => OWNER_CATEGORIES.indexOf(a.kategori) - OWNER_CATEGORIES.indexOf(b.kategori) || a.harga - b.harga || a.id - b.id);
+        el.querySelector('#menuCount').textContent = list.length + ' item';
+        body.innerHTML = list.map(m => {
+          const st = stokStatus(m);
+          return `
+          <tr>
+            <td><img class="thumb" src="${esc(m.foto || placeholderImg(m.nama))}" data-name="${esc(m.nama)}" alt=""></td>
+            <td>${esc(m.nama)}</td>
+            <td>${esc(m.kategori)}</td>
+            <td>
+              <div class="input-group input-group-sm price-input">
+                <span class="input-group-text">Rp</span>
+                <input type="number" class="form-control" min="0" value="${m.harga}" data-field="harga" data-id="${m.id}">
+              </div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center gap-1">
+                <input type="number" class="form-control form-control-sm stok-input" min="0" value="${getStok(m)}" data-field="stok" data-id="${m.id}">
+                <span class="badge badge-stok-${st}">${st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman'}</span>
+              </div>
+            </td>
+            <td class="text-end text-nowrap">
+              <button class="btn btn-sm btn-outline-success" data-act="edit" data-id="${m.id}">✏️ Edit</button>
+              <button class="btn btn-sm btn-outline-danger" data-act="del" data-id="${m.id}">Hapus</button>
+            </td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="6" class="text-secondary text-center">Tidak ada item yang cocok.</td></tr>';
+      }
+
+      function readPhoto(fileInput, urlInput, cb) {
+        const f = fileInput.files && fileInput.files[0];
+        if (f) compressImage(f, 500, cb);
+        else cb((urlInput.value || '').trim());
+      }
+
+      formAdd.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const f = formAdd.elements;
+        const nama = f.nama.value.trim();
+        if (!nama) { alert('Nama produk tidak boleh kosong.'); return; }
+        readPhoto(f.fotoFile, f.fotoUrl, function (foto) {
+          addMenu(nama, f.harga.value, f.kategori.value, foto, f.stok.value);
+          formAdd.reset();
+          renderRows();
+          toast('Menu berhasil ditambahkan.');
+        });
+      });
+
+      function openEdit(id) {
+        const m = getMenu().find(x => x.id === id);
+        if (!m) return;
+        const f = formEdit.elements;
+        f.id.value = m.id;
+        f.nama.value = m.nama;
+        f.kategori.value = m.kategori;
+        f.harga.value = m.harga;
+        f.stok.value = getStok(m);
+        f.fotoFile.value = '';
+        f.fotoUrl.value = '';
+        f.fotoHapus.checked = false;
+        editPhoto = '';
+        editCurrent = m.foto || '';
+        preview.src = editCurrent || placeholderImg(m.nama);
+        preview.dataset.name = m.nama;
+        delete preview.dataset.fb;
+        editCard.classList.remove('d-none');
+        editCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      formEdit.elements.fotoFile.addEventListener('change', function () {
+        const file = this.files[0];
+        if (!file) { editPhoto = ''; return; }
+        compressImage(file, 500, function (data) {
+          editPhoto = data;
+          preview.src = data;
+        });
+      });
+      formEdit.elements.fotoUrl.addEventListener('input', function () {
+        const v = this.value.trim();
+        if (v && !editPhoto) preview.src = v;
+      });
+
+      formEdit.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const f = formEdit.elements;
+        const nama = f.nama.value.trim();
+        if (!nama) { alert('Nama produk tidak boleh kosong.'); return; }
+        const harga = Number(f.harga.value);
+        if (isNaN(harga) || harga < 0) { alert('Harga tidak valid.'); return; }
+        const url = f.fotoUrl.value.trim();
+        let foto = editCurrent;
+        if (editPhoto) foto = editPhoto;
+        else if (url) foto = url;
+        else if (f.fotoHapus.checked) foto = '';
+        updateMenu(Number(f.id.value), {
+          nama: nama,
+          kategori: f.kategori.value,
+          harga: harga,
+          stok: Math.max(0, parseInt(f.stok.value, 10) || 0),
+          foto: foto
+        });
+        editCard.classList.add('d-none');
+        renderRows();
+        toast('Menu berhasil diperbarui.');
+      });
+
+      el.querySelector('#editCancel').addEventListener('click', function () {
+        editCard.classList.add('d-none');
+      });
+
+      body.addEventListener('click', function (e) {
+        const b = e.target.closest('button[data-act]');
+        if (!b) return;
+        const id = Number(b.dataset.id);
+        if (b.dataset.act === 'edit') openEdit(id);
+        if (b.dataset.act === 'del' && confirm('Hapus item ini?')) {
+          deleteMenu(id);
+          renderRows();
+          toast('Menu dihapus.');
+        }
+      });
+
+      body.addEventListener('change', function (e) {
+        const inp = e.target.closest('input[data-field]');
+        if (!inp) return;
+        const id = Number(inp.dataset.id);
+        if (inp.dataset.field === 'harga') {
+          const n = Number(inp.value);
+          if (isNaN(n) || n < 0) { alert('Harga tidak valid.'); renderRows(); return; }
+          updateMenu(id, { harga: n });
+          toast('Harga diperbarui.');
+        } else {
+          setStok(id, inp.value);
+          renderRows();
+          toast('Stok diperbarui.');
+        }
+      });
+
+      el.querySelector('#menuSearch').addEventListener('input', renderRows);
+      el.querySelector('#filterKat').addEventListener('change', renderRows);
+      renderRows();
+    }
+
+    function renderKaryawanPage(el) {
+      el.innerHTML = `
+        <div class="row g-3">
+          <div class="col-lg-5">
+            <div class="card p-3">
+              <h5 class="fw-bold mb-3">➕ Tambah Akun Karyawan</h5>
+              <form id="formKar" autocomplete="off">
+                <div class="mb-3">
+                  <label class="form-label">Username</label>
+                  <input type="text" name="u" class="form-control" required autocomplete="off">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Password</label>
+                  <input type="text" name="p" class="form-control" required autocomplete="off">
+                </div>
+                <button class="btn btn-teh w-100">Tambah Karyawan</button>
+              </form>
+              <small class="text-secondary mt-2">Karyawan tidak dapat mengganti password sendiri.</small>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <div class="card p-3">
+              <h5 class="fw-bold mb-3">📋 Daftar Karyawan</h5>
+              <div class="table-responsive">
+                <table class="table align-middle">
+                  <thead><tr><th>Username</th><th>Password</th><th></th></tr></thead>
+                  <tbody id="karBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      const body = el.querySelector('#karBody');
+      function renderRows() {
+        body.innerHTML = getKaryawan().map(k => `
+          <tr><td>${esc(k.username)}</td><td>${esc(k.password)}</td>
+          <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-outline-secondary" data-act="pass" data-id="${k.id}">Ubah Password</button>
+            <button class="btn btn-sm btn-outline-danger" data-act="del" data-id="${k.id}">Hapus</button>
+          </td></tr>`).join('')
+          || '<tr><td colspan="3" class="text-secondary text-center">Belum ada karyawan.</td></tr>';
+      }
+
+      el.querySelector('#formKar').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const f = this.elements;
+        if (!addKaryawan(f.u.value, f.p.value)) { alert('Username sudah dipakai.'); return; }
+        this.reset();
+        renderRows();
+        toast('Karyawan ditambahkan.');
+      });
+
+      body.addEventListener('click', function (e) {
+        const b = e.target.closest('button[data-act]');
+        if (!b) return;
+        const id = Number(b.dataset.id);
+        if (b.dataset.act === 'del' && confirm('Hapus akun karyawan ini?')) {
+          deleteKaryawan(id);
+          renderRows();
+          toast('Karyawan dihapus.');
+        }
+        if (b.dataset.act === 'pass') {
+          const p = prompt('Masukkan password baru untuk karyawan ini:');
+          if (p && p.trim()) {
+            updateKaryawanPassword(id, p.trim());
+            renderRows();
+            toast('Password karyawan diperbarui.');
+          }
+        }
+      });
+      renderRows();
+    }
+
+    function renderTokoPage(el) {
+      el.innerHTML = `
+        <div class="card p-3 mb-3">
+          <h5 class="fw-bold mb-3">🏪 Identitas Toko</h5>
+          <form id="formToko">
+            <div class="mb-3">
+              <label class="form-label">Nama Toko</label>
+              <input type="text" name="nama" class="form-control" required>
+              <small class="text-secondary">Otomatis berubah di semua halaman, termasuk header pembeli.</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Running Text Promo</label>
+              <textarea name="running" class="form-control" rows="2"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Harga Dasar Seblak (opsional)</label>
+              <input type="number" name="base" class="form-control" min="0" required>
+              <small class="text-secondary">Isi 0 jika seblak hanya dihitung dari harga topping satuan.</small>
+            </div>
+            <button class="btn btn-teh" type="submit">Simpan Perubahan</button>
+          </form>
+          <hr>
+          <label class="form-label fw-semibold">Foto QRIS Toko</label>
+          <div class="text-center mb-2"><img id="qrisPreview" class="qris-img" alt="QRIS"></div>
+          <input type="file" id="inQris" class="form-control" accept="image/*">
+          <small class="text-secondary">QRIS otomatis tersimpan setelah file dipilih.</small>
+        </div>
+
+        <div class="card p-3">
+          <h5 class="fw-bold mb-1">🔐 Akun Owner</h5>
+          <p class="small text-secondary">Username saat ini: <strong id="curOwnerUser"></strong></p>
+          <form id="formOwner" autocomplete="off">
+            <div class="mb-3">
+              <label class="form-label">Password Saat Ini</label>
+              <input type="password" name="cur" class="form-control" required autocomplete="new-password">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Username Baru</label>
+              <input type="text" name="nu" class="form-control" required minlength="3" autocomplete="off">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Password Baru</label>
+              <input type="password" name="np" class="form-control" required minlength="4" autocomplete="new-password">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Ulangi Password Baru</label>
+              <input type="password" name="np2" class="form-control" required minlength="4" autocomplete="new-password">
+            </div>
+            <button class="btn btn-teh" type="submit">Simpan Akun Owner</button>
+          </form>
+        </div>`;
+
+      const formToko = el.querySelector('#formToko');
+      formToko.elements.nama.value = getStoreName();
+      formToko.elements.running.value = getRunningText();
+      formToko.elements.base.value = getSeblakBase();
+      el.querySelector('#qrisPreview').src = getQris();
+      el.querySelector('#curOwnerUser').textContent = getOwnerCred().username;
+
+      formToko.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const f = formToko.elements;
+        dbSet(KEYS.storeName, f.nama.value.trim() || 'Kedai Teh Neng');
+        dbSet(KEYS.runningText, f.running.value.trim());
+        dbSet(KEYS.seblakBase, Number(f.base.value) || 0);
+        applyStoreIdentity();
+        applyLanguage();
+        toast('Pengaturan toko berhasil disimpan.');
+      });
+
+      el.querySelector('#inQris').addEventListener('change', function () {
+        if (!this.files[0]) return;
+        compressImage(this.files[0], 600, function (data) {
+          dbSet(KEYS.qris, data);
+          el.querySelector('#qrisPreview').src = data;
+          toast('Foto QRIS berhasil diganti.');
+        });
+      });
+
+      el.querySelector('#formOwner').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const f = this.elements;
+        const nu = f.nu.value.trim();
+        if (f.cur.value !== getOwnerCred().password) { alert('Password saat ini salah.'); return; }
+        if (nu.length < 3) { alert('Username baru minimal 3 karakter.'); return; }
+        if (f.np.value.length < 4) { alert('Password baru minimal 4 karakter.'); return; }
+        if (f.np.value !== f.np2.value) { alert('Ulangi password baru tidak sama.'); return; }
+        updateOwnerCred(nu, f.np.value);
+        dbSet(KEYS.session, { role: 'owner', user: nu });
+        this.reset();
+        document.getElementById('userInfo').textContent = 'Login: ' + nu;
+        el.querySelector('#curOwnerUser').textContent = nu;
+        alert('Akun Owner berhasil diperbarui. Gunakan username & password baru saat login berikutnya.');
+      });
+    }
+
+    window.addEventListener('storage', renderStats);
+    setInterval(renderStats, 5000);
+
+    updatePeriodButtons();
+    renderStats();
+  </script>
+</body>
+</html>

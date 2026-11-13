@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dapur & Kasir - Kedai Teh Neng</title>
+  <script>
+    try { document.documentElement.setAttribute('data-bs-theme', localStorage.getItem('kt3_theme') || 'light'); } catch (e) {}
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <nav class="navbar navbar-teh">
+    <div class="container-fluid px-3">
+      <span class="navbar-brand fw-bold mb-0">👨‍🍳 Dapur &amp; Kasir — <span data-store-name>Kedai Teh Neng</span></span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-white small d-none d-md-inline" id="userInfo"></span>
+        <button type="button" class="btn btn-sm btn-outline-light gear-btn" aria-label="Pengaturan" title="Pengaturan"><span class="gear-icon">⚙️</span></button>
+        <button type="button" class="btn btn-sm btn-light" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid py-4 px-3 screen-only">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <h4 class="fw-bold mb-0">🔥 Antrean Pesanan Masuk <span class="badge bg-danger ms-1" id="badgeProses">0</span></h4>
+      <div class="btn-group" role="group" id="orderFilter">
+        <button type="button" class="btn btn-outline-teh active" data-f="semua">Semua</button>
+        <button type="button" class="btn btn-outline-teh" data-f="diproses">Diproses</button>
+        <button type="button" class="btn btn-outline-teh" data-f="selesai">Selesai</button>
+      </div>
+    </div>
+    <div class="row g-3" id="orderList"></div>
+  </div>
+
+  <div class="print-only" id="printArea"></div>
+  <div class="print-only" id="receiptArea"></div>
+
+  <div class="modal fade" id="modalBukti" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Bukti Pembayaran QRIS</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body text-center">
+          <img id="buktiImg" class="img-fluid rounded" alt="Bukti bayar">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/script.js"></script>
+  <script>
+    if (!requireAuth('karyawan')) { throw new Error('Unauthorized'); }
+    document.getElementById('userInfo').textContent = 'Login: ' + getSession().user;
+
+    let filter = 'semua';
+    let rekapEl = null;
+    let stokEl = null;
+
+    registerSettingsPages([
+      {
+        id: 'stok', icon: '📦', title: 'Cek Stok Produk',
+        desc: 'Lihat status ketersediaan stok (hanya lihat)', wide: true, render: renderStokPage
+      },
+      {
+        id: 'rekap', icon: '💰', title: 'Rekap Setoran Kasir Shift',
+        desc: 'Ringkasan tunai/QRIS dan cetak PDF rekap shift', wide: true, render: renderRekapPage
+      }
+    ]);
+
+    function renderOrders() {
+      const orders = getOrders();
+      const sum = summarize(orders);
+      document.getElementById('badgeProses').textContent = orders.filter(o => o.status === 'diproses').length;
+
+      const list = orders
+        .filter(o => filter === 'semua' || o.status === filter)
+        .sort((a, b) => b.ts - a.ts);
+
+      document.getElementById('orderList').innerHTML = list.length ? list.map(cardHtml).join('')
+        : '<p class="text-secondary text-center my-5">Belum ada pesanan.</p>';
+      renderPrint(orders, sum);
+      fillRekap();
+    }
+
+    function cardHtml(o) {
+      const isDel = o.tipe === SERVICE_TYPES.delivery;
+      const tipeBadge = isDel ? 'bg-danger' : (o.tipe === SERVICE_TYPES.bungkus ? 'bg-warning text-dark' : 'bg-primary');
+      const wa = orderWa(o);
+      const waOk = validWa(wa);
+      return `
+        <div class="col-md-6 col-xl-4">
+          <div class="card order-card ${o.status === 'selesai' ? 'selesai' : ''} ${isDel ? 'delivery' : ''}">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                  ${isDel ? '' : `<span class="table-badge">Meja ${esc(o.meja)}</span>`}
+                  <span class="fw-bold ms-1">#${String(o.no).padStart(3, '0')}</span>
+                </div>
+                <span class="badge ${o.status === 'selesai' ? 'bg-success' : 'bg-warning text-dark'}">
+                  ${o.status === 'selesai' ? 'Selesai' : 'Diproses'}
+                </span>
+              </div>
+              <div class="fw-semibold">👤 ${esc(o.nama)}</div>
+              <div class="small">📲 ${waOk ? esc(wa) : '<span class="text-secondary">Nomor WA tidak tersedia</span>'}</div>
+              <small class="text-secondary">${esc(o.waktu)}</small>
+              <div class="my-2"><span class="badge ${tipeBadge}">${esc(o.tipe)}</span></div>
+
+              ${isDel ? `
+                <div class="alert alert-danger py-2 px-2 mb-2 small">
+                  <div>📍 ${esc(o.alamat)}</div>
+                </div>` : ''}
+
+              ${o.catatan ? `<div class="alert alert-warning py-1 px-2 mb-2 small">📝 ${esc(o.catatan)}</div>` : ''}
+
+              <ul class="list-unstyled my-2">
+                ${o.items.map(i => `
+                  <li class="mb-2">
+                    <strong>${i.qty}×</strong> ${esc(i.nama)}
+                    ${i.pedas ? `<span class="badge bg-dark ms-1">🌶️ ${esc(i.pedas)}</span><span class="badge bg-secondary ms-1">${esc(i.rasa)}</span>` : ''}
+                    ${i.suhu ? `<span class="badge ${i.suhu === 'Panas' ? 'bg-danger' : 'bg-info text-dark'} ms-1">${suhuLabel(i.suhu)}</span>` : ''}
+                    ${i.toppings && i.toppings.length ? `<div class="sub-line">Topping: ${esc(i.toppings.join(', '))}</div>` : ''}
+                    ${i.catatan ? `<div class="sub-line fw-semibold">📝 ${esc(i.catatan)}</div>` : ''}
+                  </li>`).join('')}
+              </ul>
+
+              <div class="mb-2">
+                <div class="price">${rupiah(o.total)}</div>
+                <small>${o.metode === 'qris' ? '📱 QRIS' : '💵 Tunai di Kasir'}</small>
+              </div>
+
+              <div class="d-flex gap-1 flex-wrap">
+                ${o.status !== 'selesai'
+                  ? `<button class="btn btn-sm btn-teh" onclick="selesai('${o.id}')">Tandai Selesai</button>` : ''}
+                <button class="btn btn-sm btn-success" ${waOk ? '' : 'disabled'} onclick="kirimWa('${o.id}')">📲 Kirim Pesan ke WA</button>
+                ${o.metode === 'qris' && o.bukti
+                  ? `<button class="btn btn-sm btn-outline-primary" onclick="lihatBukti('${o.id}')">Lihat Bukti Bayar QRIS</button>` : ''}
+                <button class="btn btn-sm btn-outline-secondary" onclick="printReceipt('${o.id}')">🧾 Cetak Struk Pembeli</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="downloadReceiptPng('${o.id}')">📥 Struk PNG</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderPrint(orders, sum) {
+      const done = orders.filter(o => o.status === 'selesai').sort((a, b) => a.ts - b.ts);
+      document.getElementById('printArea').innerHTML = `
+        <div class="print-title">
+          <h3>${esc(getStoreName())}</h3>
+          <h5>REKAP SETORAN SHIFT</h5>
+          <div>Dicetak: ${new Date().toLocaleString('id-ID')} • Kasir: ${esc(getSession().user)}</div>
+        </div>
+        <table class="tbl-compact">
+          <thead><tr>
+            <th>No</th><th>Waktu</th><th>Layanan</th><th>Nama</th><th>Item</th><th>Bayar</th><th style="text-align:right">Total</th>
+          </tr></thead>
+          <tbody>
+            ${done.map(o => `<tr>
+              <td>#${String(o.no).padStart(3, '0')}</td>
+              <td>${fmtShort(o.ts)}</td>
+              <td>${esc(tipeShort(o))}</td>
+              <td>${esc(o.nama)}</td>
+              <td>${esc(itemsShort(o))}</td>
+              <td>${o.metode === 'qris' ? 'QRIS' : 'Tunai'}</td>
+              <td style="text-align:right">${rupiah(o.total)}</td></tr>`).join('')
+              || '<tr><td colspan="7" style="text-align:center">Belum ada pesanan selesai</td></tr>'}
+          </tbody>
+        </table>
+        <table class="tbl-compact summary-tbl">
+          <tbody>
+            <tr><td>Tunai</td><td style="text-align:right">${rupiah(sum.tunai)}</td>
+                <td>Makan di sini (${sum.cDinein})</td><td style="text-align:right">${rupiah(sum.dinein)}</td></tr>
+            <tr><td>QRIS</td><td style="text-align:right">${rupiah(sum.qris)}</td>
+                <td>Dibungkus (${sum.cBungkus})</td><td style="text-align:right">${rupiah(sum.bungkus)}</td></tr>
+            <tr><td><strong>TOTAL SETORAN</strong></td><td style="text-align:right"><strong>${rupiah(sum.total)}</strong></td>
+                <td>Delivery (${sum.cDelivery})</td><td style="text-align:right">${rupiah(sum.delivery)}</td></tr>
+          </tbody>
+        </table>`;
+    }
+
+    function selesai(id) { updateOrderStatus(id, 'selesai'); renderOrders(); }
+
+    function lihatBukti(id) {
+      const o = getOrders().find(x => x.id === id);
+      if (!o || !o.bukti) return;
+      document.getElementById('buktiImg').src = o.bukti;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalBukti')).show();
+    }
+
+    document.getElementById('orderFilter').addEventListener('click', e => {
+      const b = e.target.closest('button[data-f]');
+      if (!b) return;
+      document.querySelectorAll('#orderFilter button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      filter = b.dataset.f;
+      renderOrders();
+    });
+
+    function renderStokPage(el) {
+      stokEl = el;
+      el.innerHTML = `
+        <div class="card p-3">
+          <div class="alert alert-info py-2 small">🔒 Stok hanya dapat diubah oleh Owner.</div>
+          <div class="row g-2 mb-3 align-items-center">
+            <div class="col-md-4">
+              <input type="search" id="stokSearch" class="form-control form-control-sm" placeholder="🔍 Cari menu / topping…">
+            </div>
+            <div class="col-md-4">
+              <select id="stokKat" class="form-select form-select-sm">
+                <option value="">Semua kategori</option>
+                ${OWNER_CATEGORIES.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="stokLow">
+                <label class="form-check-label" for="stokLow">Hanya yang menipis / habis</label>
+              </div>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Nama</th><th>Kategori</th><th>Status</th></tr></thead>
+              <tbody id="stokBody"></tbody>
+            </table>
+          </div>
+          <small class="text-secondary mt-2">Aman = stok cukup • Menipis = hampir habis • Habis = tidak tersedia</small>
+        </div>`;
+      el.querySelector('#stokSearch').addEventListener('input', fillStok);
+      el.querySelector('#stokKat').addEventListener('change', fillStok);
+      el.querySelector('#stokLow').addEventListener('change', fillStok);
+      fillStok();
+    }
+
+    const STATUS_ORDER = { habis: 0, menipis: 1, aman: 2 };
+
+    function fillStok() {
+      if (!stokEl || !document.body.contains(stokEl)) return;
+      const q = stokEl.querySelector('#stokSearch').value.trim().toLowerCase();
+      const kat = stokEl.querySelector('#stokKat').value;
+      const onlyLow = stokEl.querySelector('#stokLow').checked;
+      const list = getMenu()
+        .filter(m => !kat || m.kategori === kat)
+        .filter(m => !q || m.nama.toLowerCase().includes(q))
+        .filter(m => !onlyLow || stokStatus(m) !== 'aman')
+        .sort((a, b) => STATUS_ORDER[stokStatus(a)] - STATUS_ORDER[stokStatus(b)] || a.nama.localeCompare(b.nama));
+      stokEl.querySelector('#stokBody').innerHTML = list.map(m => {
+        const st = stokStatus(m);
+        const label = st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman';
+        return `<tr>
+          <td>${esc(m.nama)}</td>
+          <td>${esc(m.kategori)}</td>
+          <td><span class="badge badge-stok-${st}">${label}</span></td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="3" class="text-center text-secondary">Tidak ada item yang cocok.</td></tr>';
+    }
+
+    function renderRekapPage(el) {
+      rekapEl = el;
+      fillRekap();
+    }
+
+    function fillRekap() {
+      if (!rekapEl || !document.body.contains(rekapEl)) return;
+      const orders = getOrders();
+      const s = summarize(orders);
+      const proses = orders.filter(o => o.status === 'diproses').length;
+      rekapEl.innerHTML = `
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <div class="card stat-card bg-grad-green p-3 h-100">
+              <div class="small">TOTAL SETORAN SHIFT</div>
+              <div class="fs-2 fw-bold">${rupiah(s.total)}</div>
+              <div class="small">${s.jumlahSelesai} pesanan selesai</div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card p-3 h-100">
+              <h6 class="fw-bold">Metode Pembayaran</h6>
+              <div class="d-flex justify-content-between"><span>💵 Tunai</span><strong>${rupiah(s.tunai)}</strong></div>
+              <div class="d-flex justify-content-between"><span>📱 QRIS</span><strong>${rupiah(s.qris)}</strong></div>
+              <hr class="my-2">
+              <div class="d-flex justify-content-between"><span>Pesanan diproses</span><strong>${proses}</strong></div>
+              <div class="d-flex justify-content-between"><span>Pesanan selesai</span><strong>${s.jumlahSelesai}</strong></div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card p-3 h-100">
+              <h6 class="fw-bold">Tipe Layanan</h6>
+              <div class="d-flex justify-content-between"><span>🍽️ Makan di sini</span><strong>${rupiah(s.dinein)}</strong></div>
+              <div class="d-flex justify-content-between"><span>🥡 Dibungkus</span><strong>${rupiah(s.bungkus)}</strong></div>
+              <div class="d-flex justify-content-between"><span>🛵 Delivery</span><strong>${rupiah(s.delivery)}</strong></div>
+            </div>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-teh btn-lg" onclick="printPage()">🖨️ Cetak PDF Rekap Shift</button>
+            <p class="small text-secondary mt-2 mb-0">Di jendela cetak, pilih "Simpan sebagai PDF". Struk pembeli dicetak dari tombol pada kartu pesanan.</p>
+          </div>
+        </div>`;
+    }
+
+    window.addEventListener('storage', function () {
+      renderOrders();
+      fillStok();
+    });
+    setInterval(function () {
+      renderOrders();
+      fillStok();
+    }, 3000);
+
+    renderOrders();
+  </script>
+</body>
+</html>
