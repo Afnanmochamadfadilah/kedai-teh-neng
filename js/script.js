@@ -9,10 +9,19 @@ const KEYS = {
   session: 'kt3_session',
   theme: 'kt3_theme',
   ownerCred: 'kt3_ownerCred',
-  logo: 'kt3_logo'
+  logo: 'kt3_logo',
+  bg: 'kt3_bg'
 };
 
 const LOGO_DEFAULT = { type: 'emoji', value: '🍵' };
+const BG_DEFAULT = { mode: 'aurora', image: '' };
+const BG_MODES = [
+  { id: 'aurora', icon: '✨', title: 'Aurora Mesh Gradient & Partikel Emas', desc: 'Sangat canggih dan profesional' },
+  { id: 'wave', icon: '🌊', title: 'Gelombang Teh Mengalir', desc: 'Modern, lembut, dan elegan' },
+  { id: 'minimal', icon: '💫', title: 'Partikel Cahaya Minimalis', desc: 'Bersih dan ringan' },
+  { id: 'static', icon: '🖼️', title: 'Tanpa Animasi', desc: 'Latar statis, hemat baterai' },
+  { id: 'image', icon: '📷', title: 'Wallpaper dari Galeri', desc: 'Foto kustom dengan overlay remang' }
+];
 
 const OWNER_DEFAULT = { username: 'admin', password: 'ADMIN' };
 const DEFAULT_KARYAWAN = { username: 'Afnan123', password: '12345' };
@@ -62,6 +71,32 @@ const I18N_EN = {
   'Belum ada antrean yang sedang diproses.': 'No orders are being prepared right now.',
   'Belum ada pesanan selesai hari ini.': 'No completed orders today.',
   'Data tersinkron otomatis dengan dapur.': 'Data syncs automatically with the kitchen.',
+  'Mode, bahasa, background dan animasi halaman utama': 'Mode, language, home page background and animation',
+  'Background & Animasi Halaman Utama': 'Home Page Background & Animation',
+  'Upload Wallpaper dari Galeri': 'Upload Wallpaper from Gallery',
+  'Hapus Wallpaper': 'Delete Wallpaper',
+  'Wallpaper diberi overlay remang dan blur lembut agar teks tetap jelas. Berlaku di halaman utama.': 'Wallpapers get a dim overlay and soft blur so text stays readable. Applies to the home page.',
+  'Aurora Mesh Gradient & Partikel Emas': 'Aurora Mesh Gradient & Golden Particles',
+  'Sangat canggih dan profesional': 'Highly advanced and professional',
+  'Gelombang Teh Mengalir': 'Flowing Tea Waves',
+  'Modern, lembut, dan elegan': 'Modern, soft, and elegant',
+  'Partikel Cahaya Minimalis': 'Minimal Light Particles',
+  'Bersih dan ringan': 'Clean and lightweight',
+  'Tanpa Animasi': 'No Animation',
+  'Latar statis, hemat baterai': 'Static background, battery friendly',
+  'Wallpaper dari Galeri': 'Gallery Wallpaper',
+  'Foto kustom dengan overlay remang': 'Custom photo with dim overlay',
+  'Unggah wallpaper dari galeri terlebih dahulu.': 'Please upload a wallpaper from the gallery first.',
+  'Background halaman utama diperbarui.': 'Home page background updated.',
+  'Wallpaper berhasil dipasang.': 'Wallpaper applied successfully.',
+  'Wallpaper dihapus.': 'Wallpaper deleted.',
+  'Reset Data Pesanan Aman': 'Secure Order Data Reset',
+  'Masukkan sandi owner untuk menghapus seluruh data pesanan. Tindakan ini tidak bisa dibatalkan.': 'Enter the owner password to delete all order data. This cannot be undone.',
+  'Sandi Owner': 'Owner Password',
+  'Isi sandi owner terlebih dahulu.': 'Please enter the owner password first.',
+  'Sandi owner salah. Data pesanan tidak dihapus.': 'Wrong owner password. Order data was not deleted.',
+  'Hapus SEMUA data pesanan? Tindakan ini tidak bisa dibatalkan.': 'Delete ALL order data? This cannot be undone.',
+  'Seluruh data pesanan berhasil direset.': 'All order data has been reset.',
   'Logo Toko': 'Store Logo',
   'Ikon / Inisial Logo': 'Logo Icon / Initials',
   'Isi emoji atau 1-3 huruf, lalu simpan.': 'Enter an emoji or 1-3 letters, then save.',
@@ -719,6 +754,56 @@ function getRunningText() { return dbGet(KEYS.runningText, ''); }
 function getQris() { return dbGet(KEYS.qris, defaultQris()); }
 function getSeblakBase() { return Number(dbGet(KEYS.seblakBase, 0)) || 0; }
 
+function getBg() {
+  const b = dbGet(KEYS.bg, BG_DEFAULT);
+  const valid = BG_MODES.some(m => m.id === (b && b.mode));
+  if (!valid) return BG_DEFAULT;
+  if (b.mode === 'image' && !b.image) return BG_DEFAULT;
+  return b;
+}
+function setBg(mode, image) {
+  const cur = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
+  return dbSet(KEYS.bg, { mode: mode, image: image === undefined ? (cur.image || '') : image });
+}
+function bgMarkup(mode, image) {
+  const dots = (n, cls) => {
+    let h = '';
+    for (let i = 0; i < n; i++) {
+      const l = 4 + Math.round((i * 92) / n + (i % 3) * 2);
+      const s = 4 + (i * 3) % 6;
+      const d = 22 + (i * 5) % 14;
+      const dl = -((i * 7) % 26);
+      h += '<span class="' + cls + '" style="--l:' + l + '%;--s:' + s + 'px;--d:' + d + 's;--dl:' + dl + 's"></span>';
+    }
+    return h;
+  };
+  if (mode === 'aurora') {
+    return '<div class="aurora"><i></i><i></i><i></i></div>' + dots(16, 'dot gold');
+  }
+  if (mode === 'wave') {
+    const path = 'M0,160 C240,80 480,240 720,160 S1200,80 1440,160 C1680,80 1920,240 2160,160 S2640,80 2880,160 L2880,320 L0,320 Z';
+    const svg = c => '<svg class="wave ' + c + '" viewBox="0 0 2880 320" preserveAspectRatio="none"><path d="' + path + '"/></svg>';
+    return '<div class="wave-glow"></div>' + svg('w3') + svg('w2') + svg('w1') + dots(6, 'dot');
+  }
+  if (mode === 'minimal') {
+    return dots(20, 'dot soft');
+  }
+  if (mode === 'image' && image) {
+    return '<div class="wallpaper"></div><div class="wallpaper-dim"></div>';
+  }
+  return '';
+}
+function applyBackground() {
+  const box = document.querySelector('.bg-anim');
+  if (!box) return;
+  const b = getBg();
+  ['aurora', 'wave', 'minimal', 'static', 'image'].forEach(m => document.body.classList.remove('bg-' + m));
+  document.body.classList.add('bg-' + b.mode);
+  box.innerHTML = bgMarkup(b.mode, b.image);
+  const wp = box.querySelector('.wallpaper');
+  if (wp) wp.style.backgroundImage = 'url("' + b.image + '")';
+}
+
 function getLogo() {
   const l = dbGet(KEYS.logo, LOGO_DEFAULT);
   if (!l || !l.value) return LOGO_DEFAULT;
@@ -1069,12 +1154,9 @@ function printPage() {
   document.body.classList.remove('print-receipt');
   window.print();
 }
-function resetOrders() {
-  if (confirm('Hapus SEMUA data pesanan? Tindakan ini tidak bisa dibatalkan.')) {
-    dbSet(KEYS.orders, []);
-    return true;
-  }
-  return false;
+function resetOrdersSecure(password) {
+  if (!password || password !== getOwnerCred().password) return false;
+  return dbSet(KEYS.orders, []);
 }
 
 function receiptHtml(o) {
@@ -1415,7 +1497,8 @@ function openQueueBoard() {
   renderQueue();
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAntrean')).show();
 }
-window.addEventListener('storage', function () {
+window.addEventListener('storage', function (e) {
+  if (e.key === KEYS.bg) applyBackground();
   updateQueueBadge();
   const m = document.getElementById('modalAntrean');
   if (m && m.classList.contains('show')) renderQueue();
@@ -1584,7 +1667,79 @@ function renderDisplaySettings(el) {
       </select>
       <small class="text-secondary">Mengatur bahasa teks antarmuka.</small>
     </div>
+    <div class="card p-3 mb-3">
+      <label class="form-label fw-semibold d-block">🎞️ Background &amp; Animasi Halaman Utama</label>
+      <div class="bg-options" id="bgOptions">
+        ${BG_MODES.map(m => `
+          <label class="bg-option" data-mode="${m.id}">
+            <input type="radio" name="bgMode" value="${m.id}" class="visually-hidden">
+            <span class="bg-swatch bg-swatch-${m.id}"></span>
+            <span class="bg-text"><strong>${m.icon} ${m.title}</strong><small>${m.desc}</small></span>
+          </label>`).join('')}
+      </div>
+      <div class="bg-upload mt-3">
+        <label class="form-label fw-semibold" for="inWallpaper">Upload Wallpaper dari Galeri</label>
+        <input type="file" id="inWallpaper" class="form-control" accept="image/*">
+        <div class="wallpaper-thumb-wrap d-none" id="wallpaperThumbWrap">
+          <img id="wallpaperThumb" class="wallpaper-thumb" alt="Wallpaper">
+          <button type="button" class="btn btn-sm btn-outline-danger" id="btnWallpaperDel">Hapus Wallpaper</button>
+        </div>
+        <small class="text-secondary d-block mt-2">Wallpaper diberi overlay remang dan blur lembut agar teks tetap jelas. Berlaku di halaman utama.</small>
+      </div>
+    </div>
     <p class="small text-secondary mb-0">Pengaturan tersimpan otomatis di perangkat ini.</p>`;
+
+  const bgBox = el.querySelector('#bgOptions');
+  const thumbWrap = el.querySelector('#wallpaperThumbWrap');
+  const thumb = el.querySelector('#wallpaperThumb');
+  function syncBg() {
+    const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
+    const cur = getBg();
+    bgBox.querySelectorAll('.bg-option').forEach(l => {
+      const on = l.dataset.mode === cur.mode;
+      l.classList.toggle('active', on);
+      l.querySelector('input').checked = on;
+    });
+    if (raw.image) {
+      thumb.src = raw.image;
+      thumbWrap.classList.remove('d-none');
+    } else {
+      thumbWrap.classList.add('d-none');
+    }
+    applyBackground();
+  }
+  bgBox.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', function () {
+      const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
+      if (this.value === 'image' && !raw.image) {
+        toast('Unggah wallpaper dari galeri terlebih dahulu.');
+        syncBg();
+        return;
+      }
+      setBg(this.value);
+      syncBg();
+      toast('Background halaman utama diperbarui.');
+    });
+  });
+  el.querySelector('#inWallpaper').addEventListener('change', function () {
+    const input = this;
+    if (!input.files[0]) return;
+    compressImage(input.files[0], 1600, function (data) {
+      if (setBg('image', data)) {
+        input.value = '';
+        syncBg();
+        toast('Wallpaper berhasil dipasang.');
+      }
+    });
+  });
+  el.querySelector('#btnWallpaperDel').addEventListener('click', function () {
+    const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
+    setBg(raw.mode === 'image' ? 'aurora' : raw.mode, '');
+    syncBg();
+    toast('Wallpaper dihapus.');
+  });
+  syncBg();
+
   const sw = el.querySelector('#themeSwitch');
   sw.checked = getTheme() === 'dark';
   sw.addEventListener('change', function () { setTheme(this.checked ? 'dark' : 'light'); });
@@ -1596,7 +1751,7 @@ function renderDisplaySettings(el) {
 function allSettingsPages() {
   return [{
     id: 'display', icon: '🎨', title: 'Tampilan & Bahasa',
-    desc: 'Mode terang/gelap dan bahasa antarmuka', render: renderDisplaySettings
+    desc: 'Mode, bahasa, background dan animasi halaman utama', render: renderDisplaySettings
   }].concat(settingsPages);
 }
 
@@ -1682,6 +1837,7 @@ function bindGearButtons() {
 document.addEventListener('DOMContentLoaded', function () {
   ensureSettingsDrawer();
   bindGearButtons();
+  applyBackground();
   applyStoreIdentity();
   applyTheme(getTheme());
   applyLanguage();

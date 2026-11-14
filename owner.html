@@ -67,7 +67,6 @@
 
     <div class="d-flex flex-wrap gap-2 mb-4">
       <button class="btn btn-teh" onclick="printPage()">🖨️ Cetak Laporan Omzet (PDF)</button>
-      <button class="btn btn-outline-danger" onclick="if(resetOrders()) renderStats()">Reset Data Pesanan</button>
     </div>
 
     <div class="row g-4">
@@ -643,6 +642,18 @@
           <small class="text-secondary">QRIS otomatis tersimpan setelah file dipilih.</small>
         </div>
 
+        <div class="card p-3 mb-3 border-danger-subtle">
+          <h5 class="fw-bold mb-1">🗑️ Reset Data Pesanan Aman</h5>
+          <p class="small text-secondary">Masukkan sandi owner untuk menghapus seluruh data pesanan. Tindakan ini tidak bisa dibatalkan.</p>
+          <form id="formReset" autocomplete="off">
+            <div class="mb-3">
+              <label class="form-label">Sandi Owner</label>
+              <input type="password" name="pw" class="form-control" autocomplete="new-password" required>
+            </div>
+            <button class="btn btn-outline-danger" type="submit">Reset Data Pesanan</button>
+          </form>
+        </div>
+
         <div class="card p-3">
           <h5 class="fw-bold mb-1">🔐 Akun Owner</h5>
           <p class="small text-secondary">Username saat ini: <strong id="curOwnerUser"></strong></p>
@@ -703,6 +714,23 @@
             toast('Logo toko berhasil diperbarui.');
           }
         });
+      });
+      const formReset = el.querySelector('#formReset');
+      formReset.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const pw = formReset.elements.pw.value;
+        if (!pw) { alert('Isi sandi owner terlebih dahulu.'); return; }
+        if (pw !== getOwnerCred().password) {
+          alert('Sandi owner salah. Data pesanan tidak dihapus.');
+          formReset.reset();
+          return;
+        }
+        if (!confirm('Hapus SEMUA data pesanan? Tindakan ini tidak bisa dibatalkan.')) return;
+        if (resetOrdersSecure(pw)) {
+          formReset.reset();
+          if (typeof renderStats === 'function') renderStats();
+          toast('Seluruh data pesanan berhasil direset.');
+        }
       });
       el.querySelector('#btnLogoReset').addEventListener('click', function () {
         setLogo(LOGO_DEFAULT.type, LOGO_DEFAULT.value);
