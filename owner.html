@@ -601,6 +601,23 @@
     function renderTokoPage(el) {
       el.innerHTML = `
         <div class="card p-3 mb-3">
+          <h5 class="fw-bold mb-3">🖼️ Logo Toko</h5>
+          <div class="logo-preview-box mb-3" id="logoPreview"></div>
+          <form id="formLogo" class="mb-3" autocomplete="off">
+            <label class="form-label">Ikon / Inisial Logo</label>
+            <div class="input-group">
+              <input type="text" name="ikon" class="form-control" maxlength="4" placeholder="🍵">
+              <button class="btn btn-teh" type="submit">Simpan Ikon</button>
+            </div>
+            <small class="text-secondary">Isi emoji atau 1-3 huruf, lalu simpan.</small>
+          </form>
+          <label class="form-label">Upload Gambar Logo</label>
+          <input type="file" id="inLogo" class="form-control" accept="image/*">
+          <small class="text-secondary d-block mb-3">Logo otomatis tersimpan setelah file dipilih dan tampil di header pembeli serta struk.</small>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="btnLogoReset">Kembalikan Logo Bawaan</button>
+        </div>
+
+        <div class="card p-3 mb-3">
           <h5 class="fw-bold mb-3">🏪 Identitas Toko</h5>
           <form id="formToko">
             <div class="mb-3">
@@ -656,6 +673,42 @@
       formToko.elements.base.value = getSeblakBase();
       el.querySelector('#qrisPreview').src = getQris();
       el.querySelector('#curOwnerUser').textContent = getOwnerCred().username;
+
+      const logoBox = el.querySelector('#logoPreview');
+      const formLogo = el.querySelector('#formLogo');
+      function refreshLogo() {
+        logoBox.innerHTML = logoHtml('store-logo store-logo-hero');
+        const l = getLogo();
+        formLogo.elements.ikon.value = l.type === 'emoji' ? l.value : '';
+        applyStoreIdentity();
+      }
+      refreshLogo();
+
+      formLogo.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const v = formLogo.elements.ikon.value.trim();
+        if (!v) { alert('Isi ikon atau inisial logo terlebih dahulu.'); return; }
+        if (setLogo('emoji', v)) {
+          refreshLogo();
+          toast('Logo toko berhasil diperbarui.');
+        }
+      });
+      el.querySelector('#inLogo').addEventListener('change', function () {
+        const input = this;
+        if (!input.files[0]) return;
+        compressLogo(input.files[0], 256, function (data) {
+          if (setLogo('img', data)) {
+            refreshLogo();
+            input.value = '';
+            toast('Logo toko berhasil diperbarui.');
+          }
+        });
+      });
+      el.querySelector('#btnLogoReset').addEventListener('click', function () {
+        setLogo(LOGO_DEFAULT.type, LOGO_DEFAULT.value);
+        refreshLogo();
+        toast('Logo dikembalikan ke bawaan.');
+      });
 
       formToko.addEventListener('submit', function (e) {
         e.preventDefault();

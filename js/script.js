@@ -8,8 +8,11 @@ const KEYS = {
   seblakBase: 'kt3_seblakBase',
   session: 'kt3_session',
   theme: 'kt3_theme',
-  ownerCred: 'kt3_ownerCred'
+  ownerCred: 'kt3_ownerCred',
+  logo: 'kt3_logo'
 };
+
+const LOGO_DEFAULT = { type: 'emoji', value: '🍵' };
 
 const OWNER_DEFAULT = { username: 'admin', password: 'ADMIN' };
 const DEFAULT_KARYAWAN = { username: 'Afnan123', password: '12345' };
@@ -50,6 +53,25 @@ const I18N_EN = {
   'Tampilan & Bahasa': 'Display & Language',
   'Mode terang/gelap dan bahasa antarmuka': 'Light/dark mode and interface language',
   'Kembali': 'Back',
+  'Riwayat & Struk': 'History & Receipt',
+  'Cek Papan Antrean Live': 'Check Live Queue Board',
+  'Papan Antrean Live': 'Live Queue Board',
+  'Sedang Diproses': 'Being Prepared',
+  'Siap / Selesai': 'Ready / Done',
+  'Antrean': 'Queue',
+  'Belum ada antrean yang sedang diproses.': 'No orders are being prepared right now.',
+  'Belum ada pesanan selesai hari ini.': 'No completed orders today.',
+  'Data tersinkron otomatis dengan dapur.': 'Data syncs automatically with the kitchen.',
+  'Logo Toko': 'Store Logo',
+  'Ikon / Inisial Logo': 'Logo Icon / Initials',
+  'Isi emoji atau 1-3 huruf, lalu simpan.': 'Enter an emoji or 1-3 letters, then save.',
+  'Simpan Ikon': 'Save Icon',
+  'Upload Gambar Logo': 'Upload Logo Image',
+  'Logo otomatis tersimpan setelah file dipilih dan tampil di header pembeli serta struk.': 'The logo is saved automatically once a file is chosen and appears in the customer header and on receipts.',
+  'Kembalikan Logo Bawaan': 'Restore Default Logo',
+  'Logo toko berhasil diperbarui.': 'Store logo updated successfully.',
+  'Logo dikembalikan ke bawaan.': 'Logo restored to default.',
+  'Isi ikon atau inisial logo terlebih dahulu.': 'Please enter a logo icon or initials first.',
 
   'Selamat Datang': 'Welcome',
   'Karyawan': 'Staff',
@@ -688,6 +710,7 @@ function initDB() {
   }
   if (!localStorage.getItem(KEYS.qris)) dbSet(KEYS.qris, defaultQris());
   if (localStorage.getItem(KEYS.seblakBase) === null) dbSet(KEYS.seblakBase, 0);
+  if (!localStorage.getItem(KEYS.logo)) dbSet(KEYS.logo, LOGO_DEFAULT);
 }
 initDB();
 
@@ -696,8 +719,51 @@ function getRunningText() { return dbGet(KEYS.runningText, ''); }
 function getQris() { return dbGet(KEYS.qris, defaultQris()); }
 function getSeblakBase() { return Number(dbGet(KEYS.seblakBase, 0)) || 0; }
 
+function getLogo() {
+  const l = dbGet(KEYS.logo, LOGO_DEFAULT);
+  if (!l || !l.value) return LOGO_DEFAULT;
+  return l;
+}
+function setLogo(type, value) {
+  return dbSet(KEYS.logo, { type: type, value: value });
+}
+function logoHtml(cls) {
+  const l = getLogo();
+  const c = cls || 'store-logo';
+  if (l.type === 'img') return '<img src="' + esc(l.value) + '" alt="Logo" class="' + c + '">';
+  return '<span class="' + c + ' store-logo-emoji" aria-hidden="true">' + esc(l.value) + '</span>';
+}
+function loadLogoImage() {
+  const l = getLogo();
+  return new Promise(function (resolve) {
+    if (l.type !== 'img') { resolve(null); return; }
+    const img = new Image();
+    img.onload = function () { resolve(img); };
+    img.onerror = function () { resolve(null); };
+    img.src = l.value;
+  });
+}
+function compressLogo(file, maxSize, callback) {
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const img = new Image();
+    img.onload = function () {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      callback(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => alert('File gambar tidak valid.');
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function applyStoreIdentity() {
   const name = getStoreName();
+  document.querySelectorAll('[data-store-logo]').forEach(el => { el.innerHTML = logoHtml(el.dataset.storeLogo || 'store-logo'); });
   document.querySelectorAll('[data-store-name]').forEach(el => el.textContent = name);
   document.querySelectorAll('[data-running-text]').forEach(el => el.textContent = getRunningText());
   document.title = document.title.replace('Kedai Teh Neng', name);
@@ -1024,6 +1090,7 @@ function receiptHtml(o) {
 
   return `
     <div class="receipt">
+      <div class="center receipt-logo">${logoHtml('receipt-logo-el')}</div>
       <div class="center"><strong style="font-size:15px">${esc(getStoreName())}</strong></div>
       <div class="center">STRUK PEMBELIAN</div>
       <hr>
@@ -1073,6 +1140,7 @@ function receiptModel(o) {
   const isDel = o.tipe === SERVICE_TYPES.delivery;
   const wa = orderWa(o);
   const m = [];
+  m.push({ k: 'logo' });
   m.push({ k: 'title', t: getStoreName() });
   m.push({ k: 'center', t: tr('STRUK PEMBELIAN') });
   m.push({ k: 'hr' });
@@ -1111,8 +1179,9 @@ function receiptModel(o) {
   return m;
 }
 
-function buildReceiptCanvas(o) {
+function buildReceiptCanvas(o, logoImg) {
   const model = receiptModel(o);
+  const logoData = getLogo();
   const scale = 2, W = 480, pad = 28, inner = W - pad * 2;
   const fam = '"Courier New", Courier, monospace';
   const probe = document.createElement('canvas').getContext('2d');
@@ -1147,6 +1216,20 @@ function buildReceiptCanvas(o) {
     if (it.k === 'hr') {
       ops.push({ t: 'line', y: y + 6 });
       y += 14;
+      return;
+    }
+    if (it.k === 'logo') {
+      if (logoImg) {
+        const ratio = Math.min(160 / logoImg.width, 72 / logoImg.height, 1);
+        const w = Math.max(1, Math.round(logoImg.width * ratio));
+        const h = Math.max(1, Math.round(logoImg.height * ratio));
+        ops.push({ t: 'img', img: logoImg, x: Math.round((W - w) / 2), y, w, h });
+        y += h + 10;
+      } else {
+        const f = '44px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif';
+        ops.push({ t: 'text', s: logoData.value, x: W / 2, y, f, a: 'center' });
+        y += 58;
+      }
       return;
     }
     if (it.k === 'title') {
@@ -1213,6 +1296,8 @@ function buildReceiptCanvas(o) {
       ctx.lineTo(W - pad, op.y);
       ctx.stroke();
       ctx.restore();
+    } else if (op.t === 'img') {
+      ctx.drawImage(op.img, op.x, op.y, op.w, op.h);
     } else {
       ctx.font = op.f;
       ctx.textAlign = op.a;
@@ -1225,7 +1310,6 @@ function buildReceiptCanvas(o) {
 function downloadReceiptPng(id) {
   const o = getOrders().find(x => x.id === id);
   if (!o) { alert('Pesanan tidak ditemukan.'); return; }
-  const c = buildReceiptCanvas(o);
   const name = 'struk-' + String(o.no).padStart(3, '0') + '.png';
   const save = url => {
     const a = document.createElement('a');
@@ -1236,17 +1320,106 @@ function downloadReceiptPng(id) {
     a.remove();
     toast('Struk berhasil diunduh.');
   };
-  if (c.toBlob) {
-    c.toBlob(function (b) {
-      if (!b) { alert('Gagal membuat gambar struk.'); return; }
-      const url = URL.createObjectURL(b);
-      save(url);
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-    }, 'image/png');
-  } else {
-    save(c.toDataURL('image/png'));
-  }
+  loadLogoImage().then(function (logoImg) {
+    const c = buildReceiptCanvas(o, logoImg);
+    if (c.toBlob) {
+      c.toBlob(function (b) {
+        if (!b) { alert('Gagal membuat gambar struk.'); return; }
+        const url = URL.createObjectURL(b);
+        save(url);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      }, 'image/png');
+    } else {
+      save(c.toDataURL('image/png'));
+    }
+  });
 }
+
+function queueData() {
+  const tk = todayKey();
+  const today = getOrders().filter(o => dateKey(o.ts) === tk);
+  return {
+    proses: today.filter(o => o.status !== 'selesai').sort((a, b) => a.no - b.no),
+    selesai: today.filter(o => o.status === 'selesai').sort((a, b) => b.no - a.no).slice(0, 10)
+  };
+}
+function queueService(o) {
+  if (o.tipe === SERVICE_TYPES.delivery) return '🛵 ' + o.tipe;
+  return (o.tipe === SERVICE_TYPES.bungkus ? '🥡 ' : '🍽️ ') + o.tipe + ' • Meja ' + o.meja;
+}
+function updateQueueBadge() {
+  const n = queueData().proses.length;
+  document.querySelectorAll('[data-queue-count]').forEach(el => { el.textContent = n; });
+}
+function queueRowHtml(o, done) {
+  return `
+    <div class="queue-row ${done ? 'done' : ''}">
+      <div class="queue-no">#${String(o.no).padStart(3, '0')}</div>
+      <div class="queue-info">
+        <div class="queue-name">${esc(o.nama)}</div>
+        <div class="queue-svc">${esc(queueService(o))}</div>
+      </div>
+      <span class="badge ${done ? 'bg-success' : 'bg-warning text-dark'}">${done ? 'Selesai' : 'Diproses'}</span>
+    </div>`;
+}
+function renderQueue() {
+  const box = document.getElementById('queueBody');
+  if (!box) return;
+  const q = queueData();
+  const proses = q.proses.length
+    ? q.proses.map(o => queueRowHtml(o, false)).join('')
+    : '<p class="text-center text-secondary my-3">Belum ada antrean yang sedang diproses.</p>';
+  const selesai = q.selesai.length
+    ? q.selesai.map(o => queueRowHtml(o, true)).join('')
+    : '<p class="text-center text-secondary my-3">Belum ada pesanan selesai hari ini.</p>';
+  box.innerHTML = `
+    <div class="queue-section-title"><span>Sedang Diproses</span><span class="badge bg-warning text-dark">${q.proses.length}</span></div>
+    ${proses}
+    <div class="queue-section-title mt-3"><span>Siap / Selesai</span><span class="badge bg-success">${q.selesai.length}</span></div>
+    ${selesai}`;
+  const stamp = document.getElementById('queueStamp');
+  if (stamp) stamp.textContent = new Date().toLocaleTimeString('id-ID');
+  updateQueueBadge();
+}
+
+let queueTimer = null;
+function ensureQueueModal() {
+  if (document.getElementById('modalAntrean')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div class="modal fade" id="modalAntrean" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">📢 <span>Papan Antrean Live</span> <span class="live-dot" aria-hidden="true"></span></h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="queueBody"></div>
+          <div class="modal-footer justify-content-between small text-secondary">
+            <span>Data tersinkron otomatis dengan dapur.</span>
+            <span id="queueStamp"></span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const el = document.getElementById('modalAntrean');
+  el.addEventListener('shown.bs.modal', function () {
+    clearInterval(queueTimer);
+    queueTimer = setInterval(renderQueue, 3000);
+  });
+  el.addEventListener('hidden.bs.modal', function () { clearInterval(queueTimer); });
+}
+function openQueueBoard() {
+  ensureQueueModal();
+  renderQueue();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAntrean')).show();
+}
+window.addEventListener('storage', function () {
+  updateQueueBadge();
+  const m = document.getElementById('modalAntrean');
+  if (m && m.classList.contains('show')) renderQueue();
+});
 
 const hist = { nama: '', kontak: '', locked: false, currentId: null, timer: null };
 
@@ -1512,4 +1685,6 @@ document.addEventListener('DOMContentLoaded', function () {
   applyStoreIdentity();
   applyTheme(getTheme());
   applyLanguage();
+  updateQueueBadge();
+  setInterval(updateQueueBadge, 4000);
 });
