@@ -16,10 +16,10 @@ const KEYS = {
 const LOGO_DEFAULT = { type: 'emoji', value: '🍵' };
 const BG_DEFAULT = { mode: 'aurora', image: '', dim: 18 };
 const BG_MODES = [
-  { id: 'aurora', icon: '✨', title: 'Aurora Dynamic', desc: 'Mesh 3D interaktif dan partikel emas, bereaksi pada mouse atau sentuhan' },
-  { id: 'neon', icon: '🌃', title: 'Cyber / Neon Tea Flow', desc: 'Aliran neon futuristik dengan grid perspektif' },
-  { id: 'minimal', icon: '💫', title: 'Minimalist Glow', desc: 'Cahaya lembut, bersih, dan ringan' },
-  { id: 'static', icon: '🖼️', title: 'Tanpa Animasi / Static', desc: 'Latar statis, hemat baterai' },
+  { id: 'aurora', icon: '✨', title: 'Aurora Soft', desc: 'Mesh aurora lembut dan partikel emas, bereaksi pada mouse atau sentuhan' },
+  { id: 'neon', icon: '🌃', title: 'Cyber Neon', desc: 'Aliran neon futuristik dengan grid perspektif' },
+  { id: 'minimal', icon: '💫', title: 'Minimalist Clean', desc: 'Latar bersih dengan cahaya halus dan partikel ringan' },
+  { id: 'static', icon: '🎨', title: 'Static Color', desc: 'Warna solid tanpa animasi, hemat baterai' },
   { id: 'image', icon: '📷', title: 'Wallpaper dari Galeri', desc: 'Foto kustom tajam dengan overlay yang bisa diatur' }
 ];
 
@@ -76,14 +76,15 @@ const I18N_EN = {
   'Upload Wallpaper dari Galeri': 'Upload Wallpaper from Gallery',
   'Hapus Wallpaper': 'Delete Wallpaper',
   'Wallpaper tampil tajam; kartu dan tombol memakai kaca gelap agar tetap terbaca. Berlaku di halaman utama.': 'Wallpapers stay sharp; cards and buttons use dark glass to stay readable. Applies to the home page.',
-  'Aurora Dynamic': 'Aurora Dynamic',
-  'Mesh 3D interaktif dan partikel emas, bereaksi pada mouse atau sentuhan': 'Interactive 3D mesh and golden particles that react to mouse or touch',
-  'Cyber / Neon Tea Flow': 'Cyber / Neon Tea Flow',
+  'Aurora Soft': 'Aurora Soft',
+  'Mesh aurora lembut dan partikel emas, bereaksi pada mouse atau sentuhan': 'Soft aurora mesh and golden particles that react to mouse or touch',
+  'Cyber Neon': 'Cyber Neon',
   'Aliran neon futuristik dengan grid perspektif': 'Futuristic neon flow with a perspective grid',
-  'Minimalist Glow': 'Minimalist Glow',
-  'Cahaya lembut, bersih, dan ringan': 'Soft, clean, and lightweight glow',
-  'Tanpa Animasi / Static': 'No Animation / Static',
-  'Latar statis, hemat baterai': 'Static background, battery friendly',
+  'Minimalist Clean': 'Minimalist Clean',
+  'Latar bersih dengan cahaya halus dan partikel ringan': 'Clean background with subtle light and lightweight particles',
+  'Static Color': 'Static Color',
+  'Warna solid tanpa animasi, hemat baterai': 'Solid color without animation, battery friendly',
+  'Background dan animasi halaman utama hanya dapat diubah oleh Owner atau Karyawan setelah login.': 'The home page background and animation can only be changed by the Owner or Staff after logging in.',
   'Wallpaper dari Galeri': 'Gallery Wallpaper',
   'Foto kustom tajam dengan overlay yang bisa diatur': 'Sharp custom photo with an adjustable overlay',
   'Redupkan Wallpaper': 'Dim Wallpaper',
@@ -937,7 +938,7 @@ function startBgEngine(canvas, mode) {
       { c: '244,162,97', x: 0.55, y: 0.82, ax: 0.14, ay: 0.08, s: 0.13, r: 0.44, par: 0.2 },
       { c: '140,110,255', x: 0.92, y: 0.85, ax: 0.08, ay: 0.08, s: 0.1, r: 0.4, par: -0.18 }
     ];
-    blobs(list, dark ? 0.5 : 0.3, dark ? 'lighter' : 'source-over');
+    blobs(list, 0.42, 'lighter');
     ribbons(12, dark ? '150,255,215' : '45,130,95', dark ? 1 : 0.9, dark ? 'lighter' : 'source-over');
     drawParts(dark);
   }
@@ -1011,7 +1012,7 @@ function startBgEngine(canvas, mode) {
     const dark = isDark();
     if (mode === 'neon') drawNeon();
     else if (mode === 'minimal') drawMinimal(dark);
-    else drawAurora(dark);
+    else drawAurora(true);
   }
   function frame(ts) {
     const dt = Math.min(0.05, (ts - (S.last || ts)) / 1000);
@@ -1053,6 +1054,40 @@ function startBgEngine(canvas, mode) {
     S.raf = requestAnimationFrame(frame);
   }
 }
+function imageLuminance(src) {
+  return new Promise(function (resolve) {
+    const img = new Image();
+    img.onload = function () {
+      const c = document.createElement('canvas');
+      c.width = 32;
+      c.height = 32;
+      const g = c.getContext('2d');
+      g.drawImage(img, 0, 0, 32, 32);
+      let d;
+      try { d = g.getImageData(0, 0, 32, 32).data; } catch (e) { resolve(0.4); return; }
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+      resolve(sum / (d.length / 4));
+    };
+    img.onerror = function () { resolve(0.4); };
+    img.src = src;
+  });
+}
+function bgTone(b) {
+  if (b.mode === 'aurora' || b.mode === 'neon') return 'dark';
+  if (b.mode === 'image') {
+    const lum = b.lum == null ? 0.4 : Number(b.lum);
+    return lum * (1 - (b.dim / 100) * 1.1) > 0.55 ? 'light' : 'dark';
+  }
+  return 'auto';
+}
+function applyTone(b) {
+  const cl = document.body.classList;
+  cl.remove('bg-glass-dark', 'bg-glass-light');
+  const t = bgTone(b);
+  if (t === 'dark') cl.add('bg-glass-dark');
+  else if (t === 'light') cl.add('bg-glass-light');
+}
 function bgMarkup(mode, image) {
   if (mode === 'aurora' || mode === 'neon' || mode === 'minimal') return '<canvas class="bg-canvas"></canvas>';
   if (mode === 'image' && image) return '<div class="wallpaper"></div><div class="wallpaper-dim"></div>';
@@ -1063,15 +1098,22 @@ function applyBackground() {
   if (!box) return;
   stopBgEngine();
   const b = getBg();
-  ['aurora', 'neon', 'minimal', 'static', 'image', 'glass'].forEach(m => document.body.classList.remove('bg-' + m));
+  ['aurora', 'neon', 'minimal', 'static', 'image'].forEach(m => document.body.classList.remove('bg-' + m));
   document.body.classList.add('bg-' + b.mode);
-  if (b.mode === 'image' || b.mode === 'neon') document.body.classList.add('bg-glass');
+  applyTone(b);
   box.style.setProperty('--wp-dim', (b.dim / 100).toFixed(2));
   box.innerHTML = bgMarkup(b.mode, b.image);
   const canvas = box.querySelector('canvas');
   if (canvas) startBgEngine(canvas, b.mode);
   const wp = box.querySelector('.wallpaper');
   if (wp) wp.style.backgroundImage = 'url("' + b.image + '")';
+  if (b.mode === 'image' && b.lum == null) {
+    imageLuminance(b.image).then(function (lum) {
+      setBg({ lum: lum });
+      const cur = getBg();
+      if (cur.mode === 'image') applyTone(cur);
+    });
+  }
 }
 
 function getLogo() {
@@ -1920,6 +1962,8 @@ function registerSettingsPages(pages) {
 }
 
 function renderDisplaySettings(el) {
+  const sess = getSession();
+  const canBg = !!sess && (sess.role === 'owner' || sess.role === 'karyawan');
   el.innerHTML = `
     <div class="card p-3 mb-3">
       <label class="form-label fw-semibold d-block">Mode Tampilan</label>
@@ -1937,7 +1981,7 @@ function renderDisplaySettings(el) {
       </select>
       <small class="text-secondary">Mengatur bahasa teks antarmuka.</small>
     </div>
-    <div class="card p-3 mb-3">
+    ${canBg ? `<div class="card p-3 mb-3">
       <label class="form-label fw-semibold d-block">🎞️ Background &amp; Animasi Halaman Utama</label>
       <div class="bg-options" id="bgOptions">
         ${BG_MODES.map(m => `
@@ -1961,9 +2005,13 @@ function renderDisplaySettings(el) {
           <small class="text-secondary">Makin kecil makin jernih. Naikkan jika teks kurang kontras.</small>
         </div>
       </div>
-    </div>
+    </div>` : `<div class="card p-3 mb-3">
+      <label class="form-label fw-semibold d-block">🎞️ Background &amp; Animasi Halaman Utama</label>
+      <p class="small text-secondary mb-0">Background dan animasi halaman utama hanya dapat diubah oleh Owner atau Karyawan setelah login.</p>
+    </div>`}
     <p class="small text-secondary mb-0">Pengaturan tersimpan otomatis di perangkat ini.</p>`;
 
+  if (canBg) {
   const bgBox = el.querySelector('#bgOptions');
   const thumbWrap = el.querySelector('#wallpaperThumbWrap');
   const thumb = el.querySelector('#wallpaperThumb');
@@ -2007,16 +2055,18 @@ function renderDisplaySettings(el) {
     const input = this;
     if (!input.files[0]) return;
     compressImage(input.files[0], 1920, function (data) {
-      if (setBg({ mode: 'image', image: data })) {
-        input.value = '';
-        syncBg();
-        toast('Wallpaper berhasil dipasang.');
-      }
+      imageLuminance(data).then(function (lum) {
+        if (setBg({ mode: 'image', image: data, lum: lum })) {
+          input.value = '';
+          syncBg();
+          toast('Wallpaper berhasil dipasang.');
+        }
+      });
     }, 0.82);
   });
   el.querySelector('#btnWallpaperDel').addEventListener('click', function () {
     const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
-    setBg({ mode: raw.mode === 'image' ? 'aurora' : raw.mode, image: '' });
+    setBg({ mode: raw.mode === 'image' ? 'aurora' : raw.mode, image: '', lum: null });
     syncBg();
     toast('Wallpaper dihapus.');
   });
@@ -2025,8 +2075,10 @@ function renderDisplaySettings(el) {
     dimVal.textContent = this.value + '%';
     const box = document.querySelector('.bg-anim');
     if (box) box.style.setProperty('--wp-dim', (Number(this.value) / 100).toFixed(2));
+    applyTone(getBg());
   });
   syncBg();
+  }
 
   const sw = el.querySelector('#themeSwitch');
   sw.checked = getTheme() === 'dark';
