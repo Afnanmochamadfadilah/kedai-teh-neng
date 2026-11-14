@@ -14,13 +14,13 @@ const KEYS = {
 };
 
 const LOGO_DEFAULT = { type: 'emoji', value: '🍵' };
-const BG_DEFAULT = { mode: 'aurora', image: '' };
+const BG_DEFAULT = { mode: 'aurora', image: '', dim: 18 };
 const BG_MODES = [
-  { id: 'aurora', icon: '✨', title: 'Aurora Mesh Gradient & Partikel Emas', desc: 'Sangat canggih dan profesional' },
-  { id: 'wave', icon: '🌊', title: 'Gelombang Teh Mengalir', desc: 'Modern, lembut, dan elegan' },
-  { id: 'minimal', icon: '💫', title: 'Partikel Cahaya Minimalis', desc: 'Bersih dan ringan' },
-  { id: 'static', icon: '🖼️', title: 'Tanpa Animasi', desc: 'Latar statis, hemat baterai' },
-  { id: 'image', icon: '📷', title: 'Wallpaper dari Galeri', desc: 'Foto kustom dengan overlay remang' }
+  { id: 'aurora', icon: '✨', title: 'Aurora Dynamic', desc: 'Mesh 3D interaktif dan partikel emas, bereaksi pada mouse atau sentuhan' },
+  { id: 'neon', icon: '🌃', title: 'Cyber / Neon Tea Flow', desc: 'Aliran neon futuristik dengan grid perspektif' },
+  { id: 'minimal', icon: '💫', title: 'Minimalist Glow', desc: 'Cahaya lembut, bersih, dan ringan' },
+  { id: 'static', icon: '🖼️', title: 'Tanpa Animasi / Static', desc: 'Latar statis, hemat baterai' },
+  { id: 'image', icon: '📷', title: 'Wallpaper dari Galeri', desc: 'Foto kustom tajam dengan overlay yang bisa diatur' }
 ];
 
 const OWNER_DEFAULT = { username: 'admin', password: 'ADMIN' };
@@ -75,17 +75,19 @@ const I18N_EN = {
   'Background & Animasi Halaman Utama': 'Home Page Background & Animation',
   'Upload Wallpaper dari Galeri': 'Upload Wallpaper from Gallery',
   'Hapus Wallpaper': 'Delete Wallpaper',
-  'Wallpaper diberi overlay remang dan blur lembut agar teks tetap jelas. Berlaku di halaman utama.': 'Wallpapers get a dim overlay and soft blur so text stays readable. Applies to the home page.',
-  'Aurora Mesh Gradient & Partikel Emas': 'Aurora Mesh Gradient & Golden Particles',
-  'Sangat canggih dan profesional': 'Highly advanced and professional',
-  'Gelombang Teh Mengalir': 'Flowing Tea Waves',
-  'Modern, lembut, dan elegan': 'Modern, soft, and elegant',
-  'Partikel Cahaya Minimalis': 'Minimal Light Particles',
-  'Bersih dan ringan': 'Clean and lightweight',
-  'Tanpa Animasi': 'No Animation',
+  'Wallpaper tampil tajam; kartu dan tombol memakai kaca gelap agar tetap terbaca. Berlaku di halaman utama.': 'Wallpapers stay sharp; cards and buttons use dark glass to stay readable. Applies to the home page.',
+  'Aurora Dynamic': 'Aurora Dynamic',
+  'Mesh 3D interaktif dan partikel emas, bereaksi pada mouse atau sentuhan': 'Interactive 3D mesh and golden particles that react to mouse or touch',
+  'Cyber / Neon Tea Flow': 'Cyber / Neon Tea Flow',
+  'Aliran neon futuristik dengan grid perspektif': 'Futuristic neon flow with a perspective grid',
+  'Minimalist Glow': 'Minimalist Glow',
+  'Cahaya lembut, bersih, dan ringan': 'Soft, clean, and lightweight glow',
+  'Tanpa Animasi / Static': 'No Animation / Static',
   'Latar statis, hemat baterai': 'Static background, battery friendly',
   'Wallpaper dari Galeri': 'Gallery Wallpaper',
-  'Foto kustom dengan overlay remang': 'Custom photo with dim overlay',
+  'Foto kustom tajam dengan overlay yang bisa diatur': 'Sharp custom photo with an adjustable overlay',
+  'Redupkan Wallpaper': 'Dim Wallpaper',
+  'Makin kecil makin jernih. Naikkan jika teks kurang kontras.': 'Lower is clearer. Raise it if text lacks contrast.',
   'Unggah wallpaper dari galeri terlebih dahulu.': 'Please upload a wallpaper from the gallery first.',
   'Background halaman utama diperbarui.': 'Home page background updated.',
   'Wallpaper berhasil dipasang.': 'Wallpaper applied successfully.',
@@ -368,7 +370,6 @@ const I18N_EN = {
   'Hapus akun karyawan ini?': 'Delete this staff account?',
   'Hapus item ini?': 'Delete this item?',
   'Masukkan password baru untuk karyawan ini:': 'Enter a new password for this staff member:',
-  'Hapus SEMUA data pesanan? Tindakan ini tidak bisa dibatalkan.': 'Delete ALL order data? This action cannot be undone.',
   'Rekap per Tanggal': 'Summary by Date',
   'Terjual': 'Sold',
   'Pesanan masuk': 'Incoming orders',
@@ -575,7 +576,7 @@ document.addEventListener('error', function (e) {
   }
 }, true);
 
-function compressImage(file, maxW, callback) {
+function compressImage(file, maxW, callback, quality) {
   const reader = new FileReader();
   reader.onload = function (e) {
     const img = new Image();
@@ -585,7 +586,7 @@ function compressImage(file, maxW, callback) {
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      callback(canvas.toDataURL('image/jpeg', 0.7));
+      callback(canvas.toDataURL('image/jpeg', quality || 0.7));
     };
     img.onerror = () => alert('File gambar tidak valid.');
     img.src = e.target.result;
@@ -755,51 +756,320 @@ function getQris() { return dbGet(KEYS.qris, defaultQris()); }
 function getSeblakBase() { return Number(dbGet(KEYS.seblakBase, 0)) || 0; }
 
 function getBg() {
-  const b = dbGet(KEYS.bg, BG_DEFAULT);
-  const valid = BG_MODES.some(m => m.id === (b && b.mode));
-  if (!valid) return BG_DEFAULT;
-  if (b.mode === 'image' && !b.image) return BG_DEFAULT;
+  const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
+  const b = Object.assign({}, BG_DEFAULT, raw);
+  if (b.mode === 'wave') b.mode = 'neon';
+  if (!BG_MODES.some(m => m.id === b.mode)) b.mode = BG_DEFAULT.mode;
+  if (b.mode === 'image' && !b.image) b.mode = BG_DEFAULT.mode;
+  b.dim = Math.max(0, Math.min(60, Number(b.dim)));
+  if (isNaN(b.dim)) b.dim = BG_DEFAULT.dim;
   return b;
 }
-function setBg(mode, image) {
-  const cur = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
-  return dbSet(KEYS.bg, { mode: mode, image: image === undefined ? (cur.image || '') : image });
+function setBg(patch) {
+  const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
+  return dbSet(KEYS.bg, Object.assign({}, BG_DEFAULT, raw, patch));
+}
+
+let bgEngine = null;
+function stopBgEngine() {
+  if (!bgEngine) return;
+  cancelAnimationFrame(bgEngine.S.raf);
+  window.removeEventListener('resize', bgEngine.onResize);
+  window.removeEventListener('pointermove', bgEngine.onMove);
+  window.removeEventListener('pointerdown', bgEngine.onMove);
+  document.removeEventListener('mouseleave', bgEngine.onLeave);
+  bgEngine = null;
+}
+function glowSprite(rgb) {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.18, 'rgba(' + rgb + ',.95)');
+  grad.addColorStop(0.5, 'rgba(' + rgb + ',.28)');
+  grad.addColorStop(1, 'rgba(' + rgb + ',0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return c;
+}
+function startBgEngine(canvas, mode) {
+  stopBgEngine();
+  const ctx = canvas.getContext('2d');
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const S = { w: 0, h: 0, t: 0, last: 0, px: 0.5, py: 0.5, tx: 0.5, ty: 0.5, mx: -999, my: -999, parts: [], raf: 0 };
+  const sprites = {
+    gold: glowSprite('255,205,100'),
+    goldDark: glowSprite('226,150,30'),
+    cyan: glowSprite('0,240,255'),
+    pink: glowSprite('255,60,214'),
+    lime: glowSprite('80,255,150'),
+    mint: glowSprite('150,255,215'),
+    mintDark: glowSprite('60,170,125')
+  };
+  const neonColors = [[0, 240, 255], [255, 60, 214], [80, 255, 150], [255, 200, 90]];
+  const neonKeys = ['cyan', 'pink', 'lime', 'gold'];
+  const isDark = () => document.documentElement.getAttribute('data-bs-theme') === 'dark';
+
+  function seed() {
+    const base = mode === 'neon' ? 80 : mode === 'minimal' ? 34 : 72;
+    const n = Math.max(26, Math.round(base * Math.min(1.2, (S.w * S.h) / (1280 * 720))));
+    S.parts = [];
+    for (let i = 0; i < n; i++) {
+      S.parts.push({
+        x: Math.random() * S.w,
+        y: Math.random() * S.h,
+        r: 0.8 + Math.random() * 2.4,
+        ph: Math.random() * 6.28,
+        sp: 0.6 + Math.random() * 1.4,
+        vy: mode === 'neon' ? (Math.random() - 0.5) * 8 : -(6 + Math.random() * 16),
+        vx: mode === 'neon' ? 18 + Math.random() * 40 : (Math.random() - 0.5) * 6,
+        k: neonKeys[i % 4]
+      });
+    }
+  }
+  function size() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    S.w = window.innerWidth;
+    S.h = window.innerHeight;
+    canvas.width = Math.round(S.w * dpr);
+    canvas.height = Math.round(S.h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    seed();
+  }
+  function updateParts(dt) {
+    S.parts.forEach(p => {
+      p.ph += p.sp * dt;
+      p.x += (p.vx + Math.sin(p.ph) * 6) * dt;
+      p.y += p.vy * dt;
+      const dx = p.x - S.mx;
+      const dy = p.y - S.my;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 150 && d > 0.01) {
+        const f = (1 - d / 150) * 90 * dt;
+        p.x += (dx / d) * f;
+        p.y += (dy / d) * f;
+      }
+      if (p.y < -12) { p.y = S.h + 12; p.x = Math.random() * S.w; }
+      if (p.y > S.h + 12) p.y = -12;
+      if (p.x > S.w + 12) p.x = -12;
+      if (p.x < -12) p.x = S.w + 12;
+    });
+  }
+  function drawParts(dark) {
+    ctx.globalCompositeOperation = dark || mode === 'neon' ? 'lighter' : 'source-over';
+    S.parts.forEach(p => {
+      const a = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(p.ph * 2));
+      let key;
+      if (mode === 'neon') key = p.k;
+      else if (mode === 'minimal') key = dark ? 'mint' : 'mintDark';
+      else key = dark ? 'gold' : 'goldDark';
+      const s = p.r * 9;
+      ctx.globalAlpha = a * (mode === 'minimal' ? 0.75 : 1);
+      ctx.drawImage(sprites[key], p.x - s / 2, p.y - s / 2, s, s);
+    });
+    ctx.globalAlpha = 1;
+  }
+  function fillBase(c0, c1) {
+    const g = ctx.createLinearGradient(0, 0, S.w * 0.3, S.h);
+    g.addColorStop(0, c0);
+    g.addColorStop(1, c1);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S.w, S.h);
+  }
+  function blobs(list, alpha, comp) {
+    ctx.globalCompositeOperation = comp;
+    list.forEach((b, i) => {
+      const cx = S.w * (b.x + b.ax * Math.sin(S.t * b.s + i * 1.7)) + (S.px - 0.5) * S.w * b.par;
+      const cy = S.h * (b.y + b.ay * Math.cos(S.t * b.s * 0.8 + i)) + (S.py - 0.5) * S.h * b.par * 0.8;
+      const r = Math.max(S.w, S.h) * b.r * (1 + 0.08 * Math.sin(S.t * 0.3 + i));
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, 'rgba(' + b.c + ',' + alpha + ')');
+      g.addColorStop(1, 'rgba(' + b.c + ',0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    });
+  }
+  function ribbons(count, rgb, aMul, comp) {
+    ctx.globalCompositeOperation = comp;
+    const rows = [];
+    for (let k = 0; k < count; k++) {
+      const depth = k / (count - 1);
+      const y0 = S.h * (0.3 + 0.55 * depth);
+      const amp = 16 + 70 * depth;
+      const pts = [];
+      for (let x = 0; x <= S.w + 14; x += 14) {
+        const y = y0
+          + Math.sin(x * 0.0042 * (1 + depth * 0.6) + S.t * 0.55 + k * 0.45 + (S.px - 0.5) * 2.4) * amp
+          + Math.sin(x * 0.011 - S.t * 0.32 + k) * amp * 0.32
+          + (S.py - 0.5) * 80 * depth;
+        pts.push(x, y);
+      }
+      rows.push(pts);
+    }
+    rows.forEach((pts, k) => {
+      const depth = k / (count - 1);
+      ctx.beginPath();
+      ctx.moveTo(pts[0], pts[1]);
+      for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + ((0.08 + 0.26 * depth) * aMul).toFixed(3) + ')';
+      ctx.lineWidth = 0.6 + 1.6 * depth;
+      ctx.stroke();
+    });
+    ctx.beginPath();
+    for (let k = 0; k < count - 1; k++) {
+      for (let i = 0; i < rows[k].length; i += 12) {
+        ctx.moveTo(rows[k][i], rows[k][i + 1]);
+        ctx.lineTo(rows[k + 1][i], rows[k + 1][i + 1]);
+      }
+    }
+    ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.07 * aMul).toFixed(3) + ')';
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+  }
+  function drawAurora(dark) {
+    fillBase(dark ? '#06120e' : '#f3fbf6', dark ? '#0c1b27' : '#fff4e2');
+    const list = [
+      { c: '82,183,136', x: 0.2, y: 0.25, ax: 0.12, ay: 0.1, s: 0.11, r: 0.5, par: 0.16 },
+      { c: '0,200,190', x: 0.78, y: 0.3, ax: 0.1, ay: 0.12, s: 0.09, r: 0.46, par: -0.14 },
+      { c: '244,162,97', x: 0.55, y: 0.82, ax: 0.14, ay: 0.08, s: 0.13, r: 0.44, par: 0.2 },
+      { c: '140,110,255', x: 0.92, y: 0.85, ax: 0.08, ay: 0.08, s: 0.1, r: 0.4, par: -0.18 }
+    ];
+    blobs(list, dark ? 0.5 : 0.3, dark ? 'lighter' : 'source-over');
+    ribbons(12, dark ? '150,255,215' : '45,130,95', dark ? 1 : 0.9, dark ? 'lighter' : 'source-over');
+    drawParts(dark);
+  }
+  function drawNeon() {
+    fillBase('#04070f', '#0b1024');
+    const horizon = S.h * 0.62;
+    const vx = S.w * (0.5 + (S.px - 0.5) * 0.25);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 12; i++) {
+      const u = (i + ((S.t * 0.35) % 1)) / 12;
+      const y = horizon + (S.h - horizon) * u * u;
+      ctx.strokeStyle = 'rgba(0,240,255,' + (0.05 + 0.2 * u).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(S.w, y);
+      ctx.stroke();
+    }
+    for (let i = -10; i <= 10; i++) {
+      ctx.strokeStyle = 'rgba(255,60,214,.13)';
+      ctx.beginPath();
+      ctx.moveTo(vx + i * S.w * 0.012, horizon);
+      ctx.lineTo(vx + i * S.w * 0.11, S.h);
+      ctx.stroke();
+    }
+    const flowY = (x, k) => horizon * (0.18 + 0.12 * k)
+      + Math.sin(x * 0.005 + S.t * 0.7 + k * 1.1) * S.h * 0.05
+      + Math.sin(x * 0.013 - S.t * 0.5 + k) * S.h * 0.018
+      + (S.py - 0.5) * 40 * (k / 6);
+    for (let k = 0; k < 7; k++) {
+      const c = neonColors[k % 4].join(',');
+      ctx.beginPath();
+      for (let x = 0; x <= S.w + 10; x += 10) {
+        const y = flowY(x, k);
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = 'rgb(' + c + ')';
+      ctx.strokeStyle = 'rgba(' + c + ',.75)';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      const u = (S.t * 0.06 * (1 + k * 0.15) + k * 0.19) % 1;
+      const hx = u * S.w;
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(sprites[neonKeys[k % 4]], hx - 17, flowY(hx, k) - 17, 34, 34);
+      ctx.globalAlpha = 1;
+    }
+    drawParts(true);
+  }
+  function drawMinimal(dark) {
+    fillBase(dark ? '#09130f' : '#f7fbf8', dark ? '#0f1d18' : '#eef7f1');
+    const list = [
+      { c: '120,215,175', x: 0.25, y: 0.3, ax: 0.1, ay: 0.08, s: 0.1, r: 0.42, par: 0.12 },
+      { c: '255,205,110', x: 0.78, y: 0.7, ax: 0.1, ay: 0.1, s: 0.12, r: 0.38, par: -0.12 },
+      { c: '90,200,210', x: 0.6, y: 0.2, ax: 0.08, ay: 0.06, s: 0.08, r: 0.34, par: 0.1 }
+    ];
+    blobs(list, dark ? 0.2 : 0.22, dark ? 'lighter' : 'source-over');
+    if (S.mx > 0) {
+      const g = ctx.createRadialGradient(S.mx, S.my, 0, S.mx, S.my, 220);
+      g.addColorStop(0, dark ? 'rgba(255,255,255,.12)' : 'rgba(90,190,150,.18)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = g;
+      ctx.fillRect(S.mx - 220, S.my - 220, 440, 440);
+    }
+    drawParts(dark);
+  }
+  function draw() {
+    const dark = isDark();
+    if (mode === 'neon') drawNeon();
+    else if (mode === 'minimal') drawMinimal(dark);
+    else drawAurora(dark);
+  }
+  function frame(ts) {
+    const dt = Math.min(0.05, (ts - (S.last || ts)) / 1000);
+    S.last = ts;
+    S.t += dt;
+    const k = Math.min(1, dt * 3);
+    S.px += (S.tx - S.px) * k;
+    S.py += (S.ty - S.py) * k;
+    updateParts(dt);
+    draw();
+    S.raf = requestAnimationFrame(frame);
+  }
+  const onMove = e => {
+    S.tx = e.clientX / S.w;
+    S.ty = e.clientY / S.h;
+    S.mx = e.clientX;
+    S.my = e.clientY;
+  };
+  const onLeave = () => {
+    S.tx = 0.5;
+    S.ty = 0.5;
+    S.mx = -999;
+    S.my = -999;
+  };
+  const onResize = () => {
+    size();
+    if (reduce) draw();
+  };
+  size();
+  window.addEventListener('resize', onResize);
+  window.addEventListener('pointermove', onMove, { passive: true });
+  window.addEventListener('pointerdown', onMove, { passive: true });
+  document.addEventListener('mouseleave', onLeave);
+  bgEngine = { S: S, onResize: onResize, onMove: onMove, onLeave: onLeave };
+  if (reduce) {
+    S.t = 2;
+    draw();
+  } else {
+    S.raf = requestAnimationFrame(frame);
+  }
 }
 function bgMarkup(mode, image) {
-  const dots = (n, cls) => {
-    let h = '';
-    for (let i = 0; i < n; i++) {
-      const l = 4 + Math.round((i * 92) / n + (i % 3) * 2);
-      const s = 4 + (i * 3) % 6;
-      const d = 22 + (i * 5) % 14;
-      const dl = -((i * 7) % 26);
-      h += '<span class="' + cls + '" style="--l:' + l + '%;--s:' + s + 'px;--d:' + d + 's;--dl:' + dl + 's"></span>';
-    }
-    return h;
-  };
-  if (mode === 'aurora') {
-    return '<div class="aurora"><i></i><i></i><i></i></div>' + dots(16, 'dot gold');
-  }
-  if (mode === 'wave') {
-    const path = 'M0,160 C240,80 480,240 720,160 S1200,80 1440,160 C1680,80 1920,240 2160,160 S2640,80 2880,160 L2880,320 L0,320 Z';
-    const svg = c => '<svg class="wave ' + c + '" viewBox="0 0 2880 320" preserveAspectRatio="none"><path d="' + path + '"/></svg>';
-    return '<div class="wave-glow"></div>' + svg('w3') + svg('w2') + svg('w1') + dots(6, 'dot');
-  }
-  if (mode === 'minimal') {
-    return dots(20, 'dot soft');
-  }
-  if (mode === 'image' && image) {
-    return '<div class="wallpaper"></div><div class="wallpaper-dim"></div>';
-  }
+  if (mode === 'aurora' || mode === 'neon' || mode === 'minimal') return '<canvas class="bg-canvas"></canvas>';
+  if (mode === 'image' && image) return '<div class="wallpaper"></div><div class="wallpaper-dim"></div>';
   return '';
 }
 function applyBackground() {
   const box = document.querySelector('.bg-anim');
   if (!box) return;
+  stopBgEngine();
   const b = getBg();
-  ['aurora', 'wave', 'minimal', 'static', 'image'].forEach(m => document.body.classList.remove('bg-' + m));
+  ['aurora', 'neon', 'minimal', 'static', 'image', 'glass'].forEach(m => document.body.classList.remove('bg-' + m));
   document.body.classList.add('bg-' + b.mode);
+  if (b.mode === 'image' || b.mode === 'neon') document.body.classList.add('bg-glass');
+  box.style.setProperty('--wp-dim', (b.dim / 100).toFixed(2));
   box.innerHTML = bgMarkup(b.mode, b.image);
+  const canvas = box.querySelector('canvas');
+  if (canvas) startBgEngine(canvas, b.mode);
   const wp = box.querySelector('.wallpaper');
   if (wp) wp.style.backgroundImage = 'url("' + b.image + '")';
 }
@@ -1684,7 +1954,12 @@ function renderDisplaySettings(el) {
           <img id="wallpaperThumb" class="wallpaper-thumb" alt="Wallpaper">
           <button type="button" class="btn btn-sm btn-outline-danger" id="btnWallpaperDel">Hapus Wallpaper</button>
         </div>
-        <small class="text-secondary d-block mt-2">Wallpaper diberi overlay remang dan blur lembut agar teks tetap jelas. Berlaku di halaman utama.</small>
+        <small class="text-secondary d-block mt-2">Wallpaper tampil tajam; kartu dan tombol memakai kaca gelap agar tetap terbaca. Berlaku di halaman utama.</small>
+        <div class="wp-dim-wrap d-none" id="wpDimWrap">
+          <label class="form-label small fw-semibold mb-0" for="wpDim">Redupkan Wallpaper <span id="wpDimVal" data-no-i18n></span></label>
+          <input type="range" class="form-range" id="wpDim" min="0" max="60" step="2">
+          <small class="text-secondary">Makin kecil makin jernih. Naikkan jika teks kurang kontras.</small>
+        </div>
       </div>
     </div>
     <p class="small text-secondary mb-0">Pengaturan tersimpan otomatis di perangkat ini.</p>`;
@@ -1692,6 +1967,9 @@ function renderDisplaySettings(el) {
   const bgBox = el.querySelector('#bgOptions');
   const thumbWrap = el.querySelector('#wallpaperThumbWrap');
   const thumb = el.querySelector('#wallpaperThumb');
+  const dimWrap = el.querySelector('#wpDimWrap');
+  const dimInput = el.querySelector('#wpDim');
+  const dimVal = el.querySelector('#wpDimVal');
   function syncBg() {
     const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
     const cur = getBg();
@@ -1703,9 +1981,13 @@ function renderDisplaySettings(el) {
     if (raw.image) {
       thumb.src = raw.image;
       thumbWrap.classList.remove('d-none');
+      dimWrap.classList.remove('d-none');
     } else {
       thumbWrap.classList.add('d-none');
+      dimWrap.classList.add('d-none');
     }
+    dimInput.value = cur.dim;
+    dimVal.textContent = cur.dim + '%';
     applyBackground();
   }
   bgBox.querySelectorAll('input').forEach(inp => {
@@ -1716,7 +1998,7 @@ function renderDisplaySettings(el) {
         syncBg();
         return;
       }
-      setBg(this.value);
+      setBg({ mode: this.value });
       syncBg();
       toast('Background halaman utama diperbarui.');
     });
@@ -1724,19 +2006,25 @@ function renderDisplaySettings(el) {
   el.querySelector('#inWallpaper').addEventListener('change', function () {
     const input = this;
     if (!input.files[0]) return;
-    compressImage(input.files[0], 1600, function (data) {
-      if (setBg('image', data)) {
+    compressImage(input.files[0], 1920, function (data) {
+      if (setBg({ mode: 'image', image: data })) {
         input.value = '';
         syncBg();
         toast('Wallpaper berhasil dipasang.');
       }
-    });
+    }, 0.82);
   });
   el.querySelector('#btnWallpaperDel').addEventListener('click', function () {
     const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
-    setBg(raw.mode === 'image' ? 'aurora' : raw.mode, '');
+    setBg({ mode: raw.mode === 'image' ? 'aurora' : raw.mode, image: '' });
     syncBg();
     toast('Wallpaper dihapus.');
+  });
+  dimInput.addEventListener('input', function () {
+    setBg({ dim: Number(this.value) });
+    dimVal.textContent = this.value + '%';
+    const box = document.querySelector('.bg-anim');
+    if (box) box.style.setProperty('--wp-dim', (Number(this.value) / 100).toFixed(2));
   });
   syncBg();
 
