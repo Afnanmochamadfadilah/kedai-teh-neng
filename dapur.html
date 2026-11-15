@@ -32,11 +32,33 @@
         <button type="button" class="btn btn-outline-teh" data-f="selesai">Selesai</button>
       </div>
     </div>
+    <div class="card p-2 p-md-3 mb-3 d-none" id="selesaiBar">
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-8 col-lg-5">
+          <label class="form-label small fw-semibold mb-1" for="selesaiTanggal">Tanggal Pesanan Selesai</label>
+          <select id="selesaiTanggal" class="form-select"></select>
+        </div>
+      </div>
+    </div>
     <div class="row g-3" id="orderList"></div>
   </div>
 
   <div class="print-only" id="printArea"></div>
   <div class="print-only" id="receiptArea"></div>
+
+  <div class="modal fade" id="modalDetail" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Detail Pesanan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row" id="detailBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="modal fade" id="modalBukti" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -60,6 +82,7 @@
 
     let filter = 'semua';
     let rekapEl = null;
+    let selesaiDate = todayKey();
     let rekapMode = 'today';
     let rekapDate = todayKey();
     let stokEl = null;
@@ -79,22 +102,100 @@
       const orders = getOrders();
       document.getElementById('badgeProses').textContent = orders.filter(o => o.status === 'diproses').length;
 
-      const list = orders
-        .filter(o => filter === 'semua' || o.status === filter)
-        .sort((a, b) => b.ts - a.ts);
+      document.getElementById('selesaiBar').classList.toggle('d-none', filter !== 'selesai');
+      const box = document.getElementById('orderList');
 
-      document.getElementById('orderList').innerHTML = list.length ? list.map(cardHtml).join('')
-        : '<p class="text-secondary text-center my-5">Belum ada pesanan.</p>';
+      if (filter === 'selesai') {
+        box.innerHTML = selesaiHtml(orders);
+      } else {
+        const list = orders
+          .filter(o => filter === 'semua' || o.status === filter)
+          .sort((a, b) => b.ts - a.ts);
+        box.innerHTML = list.length ? list.map(o => cardHtml(o)).join('')
+          : '<p class="text-secondary text-center my-5">Belum ada pesanan.</p>';
+      }
       refreshRekap();
     }
 
-    function cardHtml(o) {
+    function syncSelesaiOptions(done) {
+      const sel = document.getElementById('selesaiTanggal');
+      const counts = {};
+      done.forEach(o => { const k = dateKey(o.ts); counts[k] = (counts[k] || 0) + 1; });
+      const t = todayKey();
+      if (!(t in counts)) counts[t] = 0;
+      const keys = Object.keys(counts).sort().reverse();
+      if (selesaiDate && !keys.includes(selesaiDate)) selesaiDate = t;
+      const sig = keys.map(k => k + ':' + counts[k]).join('|');
+      if (sel.dataset.sig !== sig) {
+        sel.innerHTML = '<option value="">Semua tanggal (per hari)</option>' + keys.map(k =>
+          `<option value="${k}">${fmtDateKey(k)}${k === t ? ' • Hari Ini' : ''} (${counts[k]} pesanan)</option>`).join('');
+        sel.dataset.sig = sig;
+      }
+      if (sel.value !== selesaiDate) sel.value = selesaiDate;
+    }
+
+    function doneRowHtml(o) {
+      const jam = fmtTimeId(o.ts) + (o.selesaiTs ? ' → ' + fmtTimeId(o.selesaiTs) : '');
+      return `
+        <div class="done-row">
+          <div class="done-no">#${String(o.no).padStart(3, '0')}</div>
+          <div class="done-main">
+            <div class="done-name">${esc(o.nama)}</div>
+            <small class="text-secondary">${esc(tipeShort(o))} • ${jam}</small>
+          </div>
+          <div class="done-meta">
+            <strong>${rupiah(o.total)}</strong>
+            <span class="badge ${o.metode === 'qris' ? 'bg-primary' : 'bg-secondary'}">${o.metode === 'qris' ? 'QRIS' : 'Tunai'}</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-teh" onclick="lihatDetail('${o.id}')">Lihat</button>
+        </div>`;
+    }
+
+    function selesaiHtml(orders) {
+      const done = orders.filter(o => o.status === 'selesai');
+      syncSelesaiOptions(done);
+      const shown = done.filter(o => !selesaiDate || dateKey(o.ts) === selesaiDate);
+      if (!shown.length) {
+        return '<div class="col-12"><p class="text-secondary text-center my-5">Belum ada pesanan selesai pada tanggal ini.</p></div>';
+      }
+      const groups = {};
+      shown.forEach(o => { (groups[dateKey(o.ts)] = groups[dateKey(o.ts)] || []).push(o); });
+      const locale = getLang() === 'en' ? 'en-US' : 'id-ID';
+      return '<div class="col-12">' + Object.keys(groups).sort().reverse().map(k => {
+        const g = groups[k].sort((a, b) => b.ts - a.ts);
+        const total = g.reduce((s, o) => s + o.total, 0);
+        const label = new Date(g[0].ts).toLocaleDateString(locale, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+        return `
+          <div class="done-day">
+            <span class="done-day-title">📅 ${esc(label)}</span>
+            <span class="d-flex align-items-center gap-2">
+              <span class="badge bg-success">${g.length} pesanan</span>
+              <strong>${rupiah(total)}</strong>
+            </span>
+          </div>
+          <div class="done-list">${g.map(doneRowHtml).join('')}</div>`;
+      }).join('') + '</div>';
+    }
+
+    function lihatDetail(id) {
+      const o = getOrders().find(x => x.id === id);
+      if (!o) return;
+      document.getElementById('detailBody').innerHTML = cardHtml(o, 'col-12');
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalDetail')).show();
+    }
+
+    document.getElementById('selesaiTanggal').addEventListener('change', function () {
+      selesaiDate = this.value;
+      renderOrders();
+    });
+
+    function cardHtml(o, wrapClass) {
       const isDel = o.tipe === SERVICE_TYPES.delivery;
       const tipeBadge = isDel ? 'bg-danger' : (o.tipe === SERVICE_TYPES.bungkus ? 'bg-warning text-dark' : 'bg-primary');
       const wa = orderWa(o);
       const waOk = validWa(wa);
       return `
-        <div class="col-md-6 col-xl-4">
+        <div class="${wrapClass || 'col-md-6 col-xl-4'}">
           <div class="card order-card ${o.status === 'selesai' ? 'selesai' : ''} ${isDel ? 'delivery' : ''}">
             <div class="card-body">
               <div class="d-flex justify-content-between align-items-start mb-2">
@@ -204,7 +305,15 @@
       const o = getOrders().find(x => x.id === id);
       if (!o || !o.bukti) return;
       document.getElementById('buktiImg').src = o.bukti;
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalBukti')).show();
+      const det = document.getElementById('modalDetail');
+      const inst = bootstrap.Modal.getInstance(det);
+      const open = () => bootstrap.Modal.getOrCreateInstance(document.getElementById('modalBukti')).show();
+      if (inst && det.classList.contains('show')) {
+        det.addEventListener('hidden.bs.modal', open, { once: true });
+        inst.hide();
+      } else {
+        open();
+      }
     }
 
     document.getElementById('orderFilter').addEventListener('click', e => {
