@@ -10,7 +10,8 @@ const KEYS = {
   theme: 'kt3_theme',
   ownerCred: 'kt3_ownerCred',
   logo: 'kt3_logo',
-  bg: 'kt3_bg'
+  bg: 'kt3_bg',
+  music: 'kt3_music'
 };
 
 const LOGO_DEFAULT = { type: 'emoji', value: '🍵' };
@@ -49,6 +50,33 @@ function getLang() {
 }
 
 const I18N_EN = {
+  'Mode tampilan dan bahasa': 'Display mode and language',
+  'Musik Latar': 'Background Music',
+  'Tambah, ganti, dan hapus lagu pemutar halaman utama': 'Add, replace, and delete songs for the home page player',
+  '🎵 Musik Latar Halaman Utama': '🎵 Home Page Background Music',
+  'Aktifkan pemutar musik': 'Enable music player',
+  'Lagu pertama diputar otomatis saat pengunjung membuka halaman utama. Beberapa browser baru mengizinkan suara setelah pengunjung menyentuh layar sekali.': 'The first song plays automatically when a visitor opens the home page. Some browsers only allow sound after the visitor touches the screen once.',
+  '➕ Tambah Lagu': '➕ Add Song',
+  'Judul lagu': 'Song title',
+  'Gunakan tautan langsung ke berkas audio (.mp3, .ogg, .wav, .m4a). Tautan YouTube atau Spotify tidak bisa diputar.': 'Use a direct link to an audio file (.mp3, .ogg, .wav, .m4a). YouTube or Spotify links cannot be played.',
+  '📃 Daftar Lagu': '📃 Song List',
+  'Kembalikan Lagu Bawaan': 'Restore Default Song',
+  'Belum ada lagu. Pemutar disembunyikan sampai ada lagu.': 'No songs yet. The player stays hidden until a song is added.',
+  'Tes': 'Test',
+  'Ganti': 'Replace',
+  'Stop': 'Stop',
+  'Pemutar musik diaktifkan.': 'Music player enabled.',
+  'Pemutar musik dimatikan.': 'Music player disabled.',
+  'Tautan tidak valid. Gunakan alamat https:// ke berkas audio.': 'Invalid link. Use an https:// address to an audio file.',
+  'Lagu ditambahkan.': 'Song added.',
+  'Kembalikan daftar lagu ke lagu bawaan saja?': 'Restore the song list to the default song only?',
+  'Lagu bawaan dikembalikan.': 'Default song restored.',
+  'Lagu tidak dapat diputar. Periksa tautannya.': 'The song cannot be played. Check the link.',
+  'Hapus lagu ini dari daftar?': 'Delete this song from the list?',
+  'Lagu dihapus.': 'Song deleted.',
+  'Judul wajib diisi.': 'Title is required.',
+  'Lagu diperbarui.': 'Song updated.',
+  'Musik tidak dapat diputar. Coba tombol Next.': 'Music cannot be played. Try the Next button.',
   'Pengaturan': 'Settings',
   'Mode Tampilan': 'Display Mode',
   'Mode Gelap': 'Dark Mode',
@@ -84,7 +112,7 @@ const I18N_EN = {
   'Latar bersih dengan cahaya halus dan partikel ringan': 'Clean background with subtle light and lightweight particles',
   'Static Color': 'Static Color',
   'Warna solid tanpa animasi, hemat baterai': 'Solid color without animation, battery friendly',
-  'Background dan animasi halaman utama hanya dapat diubah oleh Owner atau Karyawan setelah login.': 'The home page background and animation can only be changed by the Owner or Staff after logging in.',
+  'Perubahan background tampil di halaman utama pembeli.': 'Background changes appear on the customer home page.',
   'Wallpaper dari Galeri': 'Gallery Wallpaper',
   'Foto kustom tajam dengan overlay yang bisa diatur': 'Sharp custom photo with an adjustable overlay',
   'Redupkan Wallpaper': 'Dim Wallpaper',
@@ -102,9 +130,6 @@ const I18N_EN = {
   'Seluruh data pesanan berhasil direset.': 'All order data has been reset.',
   'Reset Pengaturan ke Semula': 'Reset Settings to Default',
   'Reset Pengaturan Awal': 'Factory Settings Reset',
-  'Terkunci': 'Locked',
-  'Kunci Sekarang': 'Lock Now',
-  'Pengaturan background dikunci.': 'Background settings locked.',
   'Akses ditolak. Login sebagai Owner atau Karyawan untuk mengubah background.': 'Access denied. Log in as Owner or Staff to change the background.',
   'Nonaktif': 'Inactive',
   'Aktif': 'Active',
@@ -424,7 +449,7 @@ const I18N_RULES = [
   [/^Menipis \(Stok: (\d+)\)$/, 'Low (Stock: $1)'],
   [/^Habis \(Stok: (\d+)\)$/, 'Sold out (Stock: $1)'],
   [/^Selesai • (\d{2}:\d{2})$/, 'Done • $1'],
-  [/^Terbuka \(login sebagai (.+)\)$/, 'Unlocked (logged in as $1)'],
+  [/^Panel (Owner|Karyawan): (.+)$/, function (m, r, u) { return (r === 'Owner' ? 'Owner' : 'Staff') + ' panel: ' + u; }],
   [/^Nonaktif \(Stok: (\d+)\)$/, 'Inactive (Stock: $1)'],
   [/^"(.+)" sedang tidak tersedia\.$/, '"$1" is currently unavailable.'],
   [/^"(.+)" sedang tidak tersedia\. Hapus dari keranjang\.$/, '"$1" is currently unavailable. Remove it from the cart.'],
@@ -1602,7 +1627,7 @@ function printPage() {
 }
 function resetSettingsSecure(password) {
   if (!password || password !== getOwnerCred().password) return false;
-  [KEYS.theme, KEYS.bg, KEYS.logo, KEYS.storeName, KEYS.runningText, KEYS.qris, KEYS.seblakBase, KEY_LANG].forEach(k => {
+  [KEYS.theme, KEYS.bg, KEYS.logo, KEYS.storeName, KEYS.runningText, KEYS.qris, KEYS.seblakBase, KEYS.music, KEY_LANG].forEach(k => {
     try { localStorage.removeItem(k); } catch (e) {}
   });
   initDB();
@@ -2138,6 +2163,7 @@ function renderDisplaySettings(el) {
   const sess = getSession();
   const canBg = canChangeBackground();
   const onPortal = !!document.querySelector('.bg-anim');
+  const showBg = canBg && !onPortal;
   const roleLabel = sess && sess.role === 'owner' ? 'Owner' : 'Karyawan';
   el.innerHTML = `
     <div class="card p-3 mb-3">
@@ -2156,12 +2182,12 @@ function renderDisplaySettings(el) {
       </select>
       <small class="text-secondary">Mengatur bahasa teks antarmuka.</small>
     </div>
-    ${canBg ? `<div class="card p-3 mb-3">
+    ${showBg ? `<div class="card p-3 mb-3">
       <label class="form-label fw-semibold d-block">🎞️ Background &amp; Animasi Halaman Utama</label>
       <div class="bg-access unlocked">
-        <span>🔓 <span>Terbuka (login sebagai ${esc(roleLabel)}: ${esc(sess.user)})</span></span>
-        ${onPortal ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="btnBgLock">Kunci Sekarang</button>' : ''}
+        <span>🔓 <span>Panel ${esc(roleLabel)}: ${esc(sess.user)}</span></span>
       </div>
+      <p class="small text-secondary">Perubahan background tampil di halaman utama pembeli.</p>
       <div class="bg-options" id="bgOptions">
         ${BG_MODES.map(m => `
           <label class="bg-option" data-mode="${m.id}">
@@ -2184,14 +2210,10 @@ function renderDisplaySettings(el) {
           <small class="text-secondary">Makin kecil makin jernih. Naikkan jika teks kurang kontras.</small>
         </div>
       </div>
-    </div>` : `<div class="card p-3 mb-3">
-      <label class="form-label fw-semibold d-block">🎞️ Background &amp; Animasi Halaman Utama</label>
-      <div class="bg-access locked"><span>🔒 <span>Terkunci</span></span></div>
-      <p class="small text-secondary mb-0">Background dan animasi halaman utama hanya dapat diubah oleh Owner atau Karyawan setelah login.</p>
-    </div>`}
+    </div>` : ''}
     <p class="small text-secondary mb-0">Pengaturan tersimpan otomatis di perangkat ini.</p>`;
 
-  if (canBg) {
+  if (showBg) {
   const bgBox = el.querySelector('#bgOptions');
   const thumbWrap = el.querySelector('#wallpaperThumbWrap');
   const thumb = el.querySelector('#wallpaperThumb');
@@ -2203,14 +2225,6 @@ function renderDisplaySettings(el) {
     toast('Akses ditolak. Login sebagai Owner atau Karyawan untuk mengubah background.');
     renderDisplaySettings(el);
     return false;
-  }
-  const lockBtn = el.querySelector('#btnBgLock');
-  if (lockBtn) {
-    lockBtn.addEventListener('click', function () {
-      try { localStorage.removeItem(KEYS.session); } catch (e) {}
-      toast('Pengaturan background dikunci.');
-      renderDisplaySettings(el);
-    });
   }
   function syncBg() {
     const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
@@ -2289,7 +2303,7 @@ function renderDisplaySettings(el) {
 function allSettingsPages() {
   return [{
     id: 'display', icon: '🎨', title: 'Tampilan & Bahasa',
-    desc: 'Mode, bahasa, background dan animasi halaman utama', render: renderDisplaySettings
+    desc: (!document.querySelector('.bg-anim') && canChangeBackground()) ? 'Mode, bahasa, background dan animasi halaman utama' : 'Mode tampilan dan bahasa', render: renderDisplaySettings
   }].concat(settingsPages);
 }
 
@@ -2372,6 +2386,337 @@ function bindGearButtons() {
   });
 }
 
+const MUSIC_DEFAULT_URL = 'builtin';
+const MUSIC_OFF_FLAG = 'kt3_music_off';
+const MUSIC_AUTO_ADVANCE = 180000;
+
+function musicDefault() {
+  return { enabled: true, tracks: [{ id: 1, title: 'Teh Senja (Bawaan)', url: MUSIC_DEFAULT_URL }] };
+}
+function getMusic() {
+  const d = dbGet(KEYS.music, null);
+  if (!d || !Array.isArray(d.tracks)) return musicDefault();
+  return {
+    enabled: d.enabled !== false,
+    tracks: d.tracks.filter(t => t && t.url && t.title)
+  };
+}
+function isOwnerSession() {
+  const s = getSession();
+  return isStaffSession() && !!s && s.role === 'owner';
+}
+function validMusicUrl(u) {
+  u = String(u || '').trim();
+  if (u === MUSIC_DEFAULT_URL) return true;
+  if (/^https?:\/\/[^\s]+$/i.test(u)) return true;
+  return /^[\w\-./]+\.(mp3|ogg|wav|m4a|aac|opus|webm)(\?[^\s]*)?$/i.test(u);
+}
+function saveMusic(d) {
+  if (!isOwnerSession()) return false;
+  return dbSet(KEYS.music, d);
+}
+function musicSetEnabled(on) {
+  const d = getMusic();
+  d.enabled = !!on;
+  return saveMusic(d);
+}
+function musicAdd(title, url) {
+  title = String(title || '').trim();
+  url = String(url || '').trim();
+  if (!title || !validMusicUrl(url)) return false;
+  const d = getMusic();
+  const id = d.tracks.reduce((m, t) => Math.max(m, Number(t.id) || 0), 0) + 1;
+  d.tracks.push({ id, title: title.slice(0, 60), url });
+  return saveMusic(d);
+}
+function musicUpdate(id, title, url) {
+  title = String(title || '').trim();
+  url = String(url || '').trim();
+  if (!title || !validMusicUrl(url)) return false;
+  const d = getMusic();
+  const t = d.tracks.find(x => x.id === id);
+  if (!t) return false;
+  t.title = title.slice(0, 60);
+  t.url = url;
+  return saveMusic(d);
+}
+function musicDelete(id) {
+  const d = getMusic();
+  d.tracks = d.tracks.filter(t => t.id !== id);
+  return saveMusic(d);
+}
+function musicRestoreDefault() {
+  const d = musicDefault();
+  d.enabled = getMusic().enabled;
+  return saveMusic(d);
+}
+
+function createSynth() {
+  let ctx = null, master = null, bus = null, timer = null, nextAt = 0, chordIdx = 0, active = false;
+  const hz = n => 440 * Math.pow(2, (n - 69) / 12);
+  const CHORDS = [[50, 57, 61, 64], [47, 54, 59, 62], [43, 50, 55, 59], [45, 52, 57, 61]];
+  const SCALE = [62, 64, 66, 69, 71, 74, 76, 78, 81];
+  const CHORD_LEN = 8;
+
+  function build() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = 0;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2400;
+    master.connect(lp);
+    lp.connect(ctx.destination);
+    bus = ctx.createGain();
+    bus.gain.value = 1;
+    bus.connect(master);
+    const delay = ctx.createDelay(1);
+    delay.delayTime.value = 0.42;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.38;
+    const wet = ctx.createGain();
+    wet.gain.value = 0.32;
+    const dlp = ctx.createBiquadFilter();
+    dlp.type = 'lowpass';
+    dlp.frequency.value = 1800;
+    bus.connect(delay);
+    delay.connect(dlp);
+    dlp.connect(fb);
+    fb.connect(delay);
+    dlp.connect(wet);
+    wet.connect(master);
+    return true;
+  }
+  function pad(notes, t) {
+    notes.forEach((n, i) => {
+      [-4, 4].forEach(det => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = i % 2 ? 'triangle' : 'sine';
+        o.frequency.value = hz(n);
+        o.detune.value = det;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.05, t + 2.2);
+        g.gain.setValueAtTime(0.05, t + CHORD_LEN - 0.4);
+        g.gain.linearRampToValueAtTime(0.0001, t + CHORD_LEN + 2.4);
+        o.connect(g);
+        g.connect(bus);
+        o.start(t);
+        o.stop(t + CHORD_LEN + 2.6);
+      });
+    });
+  }
+  function pluck(n, t, vel) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.value = hz(n);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vel, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+    o.connect(g);
+    g.connect(bus);
+    o.start(t);
+    o.stop(t + 2.5);
+  }
+  function scheduleChord(t) {
+    pad(CHORDS[chordIdx % CHORDS.length], t);
+    let at = t + 0.8;
+    let prev = Math.floor(Math.random() * SCALE.length);
+    while (at < t + CHORD_LEN - 0.6) {
+      if (Math.random() < 0.72) {
+        prev = Math.max(0, Math.min(SCALE.length - 1, prev + Math.floor(Math.random() * 5) - 2));
+        pluck(SCALE[prev], at, 0.07 + Math.random() * 0.05);
+      }
+      at += 0.9 + Math.floor(Math.random() * 3) * 0.45;
+    }
+    chordIdx++;
+  }
+  function tick() {
+    if (!active || !ctx) return;
+    while (nextAt < ctx.currentTime + 2) {
+      scheduleChord(nextAt);
+      nextAt += CHORD_LEN;
+    }
+  }
+  function start() {
+    if (!ctx && !build()) return Promise.resolve(false);
+    active = true;
+    const wait = new Promise(res => setTimeout(() => res('timeout'), 500));
+    return Promise.race([ctx.resume().then(() => 'ok', () => 'fail'), wait]).then(function () {
+      if (!active) return false;
+      if (ctx.state !== 'running') return false;
+      if (!timer) {
+        nextAt = ctx.currentTime + 0.1;
+        tick();
+        timer = setInterval(tick, 600);
+      }
+      master.gain.cancelScheduledValues(ctx.currentTime);
+      master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
+      master.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 1.5);
+      return true;
+    });
+  }
+  function stop() {
+    active = false;
+    if (timer) { clearInterval(timer); timer = null; }
+    if (ctx && master) {
+      const old = ctx;
+      master.gain.cancelScheduledValues(old.currentTime);
+      master.gain.setValueAtTime(master.gain.value, old.currentTime);
+      master.gain.linearRampToValueAtTime(0, old.currentTime + 0.4);
+      setTimeout(function () {
+        try { old.close(); } catch (e) {}
+      }, 600);
+      ctx = null;
+      master = null;
+      bus = null;
+    }
+  }
+  return { start, stop };
+}
+
+const MUSIC_ICONS = {
+  play: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
+  next: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 5l9 7-9 7zm10 0h2v14h-2z"/></svg>'
+};
+
+function initMusicPlayer() {
+  const box = document.getElementById('musicPlayer');
+  if (!box) return;
+  const data = getMusic();
+  const tracks = data.tracks;
+  if (!data.enabled || !tracks.length) {
+    box.classList.add('d-none');
+    return;
+  }
+  const btnToggle = box.querySelector('#musicToggle');
+  const btnNext = box.querySelector('#musicNext');
+  const titleEl = box.querySelector('#musicTitle');
+  const audio = new Audio();
+  audio.preload = 'auto';
+  const synth = createSynth();
+  let idx = 0;
+  let playing = false;
+  let fails = 0;
+  let advance = null;
+  let armed = false;
+
+  function offFlag() {
+    try { return sessionStorage.getItem(MUSIC_OFF_FLAG) === '1'; } catch (e) { return false; }
+  }
+  function setOffFlag(v) {
+    try {
+      if (v) sessionStorage.setItem(MUSIC_OFF_FLAG, '1');
+      else sessionStorage.removeItem(MUSIC_OFF_FLAG);
+    } catch (e) {}
+  }
+  function ui() {
+    btnToggle.innerHTML = playing ? MUSIC_ICONS.pause : MUSIC_ICONS.play;
+    btnToggle.setAttribute('aria-label', playing ? 'Jeda musik' : 'Putar musik');
+    btnNext.innerHTML = MUSIC_ICONS.next;
+    titleEl.textContent = tracks[idx].title;
+    box.classList.toggle('is-playing', playing);
+    box.classList.remove('d-none');
+  }
+  function haltAll() {
+    if (advance) { clearTimeout(advance); advance = null; }
+    audio.pause();
+    synth.stop();
+  }
+  function playCurrent() {
+    haltAll();
+    const t = tracks[idx];
+    if (t.url === MUSIC_DEFAULT_URL) {
+      return synth.start().then(function (ok) {
+        if (ok && tracks.length > 1) advance = setTimeout(next, MUSIC_AUTO_ADVANCE);
+        return ok;
+      });
+    }
+    audio.src = t.url;
+    return audio.play().then(() => true, () => false);
+  }
+  function setPlaying(v) {
+    playing = v;
+    ui();
+  }
+  function next() {
+    idx = (idx + 1) % tracks.length;
+    setOffFlag(false);
+    playCurrent().then(function (ok) {
+      setPlaying(ok);
+      if (!ok) arm();
+    });
+  }
+  function gesture(e) {
+    if (box.contains(e.target)) { disarm(); return; }
+    if (offFlag()) { disarm(); return; }
+    playCurrent().then(function (ok) {
+      if (ok) { setPlaying(true); disarm(); }
+    });
+  }
+  const GESTURES = ['pointerup', 'click', 'touchend', 'keydown'];
+  function arm() {
+    if (armed) return;
+    armed = true;
+    GESTURES.forEach(ev => document.addEventListener(ev, gesture, true));
+  }
+  function disarm() {
+    if (!armed) return;
+    armed = false;
+    GESTURES.forEach(ev => document.removeEventListener(ev, gesture, true));
+  }
+
+  audio.addEventListener('ended', next);
+  audio.addEventListener('playing', function () { fails = 0; setPlaying(true); });
+  audio.addEventListener('error', function () {
+    if (!audio.getAttribute('src')) return;
+    fails++;
+    if (fails >= tracks.length) {
+      fails = 0;
+      setPlaying(false);
+      titleEl.textContent = 'Lagu tidak dapat diputar';
+      return;
+    }
+    idx = (idx + 1) % tracks.length;
+    playCurrent().then(function (ok) { setPlaying(ok); });
+  });
+
+  btnToggle.addEventListener('click', function () {
+    disarm();
+    if (playing) {
+      haltAll();
+      setOffFlag(true);
+      setPlaying(false);
+    } else {
+      setOffFlag(false);
+      playCurrent().then(function (ok) {
+        setPlaying(ok);
+        if (!ok) toast('Musik tidak dapat diputar. Coba tombol Next.');
+      });
+    }
+  });
+  btnNext.addEventListener('click', function () {
+    disarm();
+    if (tracks.length === 1 && playing) {
+      playCurrent().then(setPlaying);
+      return;
+    }
+    next();
+  });
+  window.addEventListener('pagehide', haltAll);
+
+  ui();
+  if (offFlag()) return;
+  playCurrent().then(function (ok) {
+    setPlaying(ok);
+    if (!ok) arm();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   ensureSettingsDrawer();
   bindGearButtons();
@@ -2380,5 +2725,6 @@ document.addEventListener('DOMContentLoaded', function () {
   applyTheme(getTheme());
   applyLanguage();
   updateQueueBadge();
+  initMusicPlayer();
   setInterval(updateQueueBadge, 4000);
 });

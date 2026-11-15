@@ -124,8 +124,169 @@
       {
         id: 'toko', icon: '🏪', title: 'Pengaturan Toko & Keamanan',
         desc: 'Nama toko, running text, harga dasar seblak, QRIS, dan password owner', render: renderTokoPage
+      },
+      {
+        id: 'musik', icon: '🎵', title: 'Musik Latar',
+        desc: 'Tambah, ganti, dan hapus lagu pemutar halaman utama', wide: true, render: renderMusikPage
       }
     ]);
+
+    const previewSynth = createSynth();
+    const previewAudio = new Audio();
+    let previewId = null;
+    function stopPreview() {
+      previewAudio.pause();
+      previewSynth.stop();
+      previewId = null;
+    }
+    function startPreview(t) {
+      stopPreview();
+      previewId = t.id;
+      if (t.url === MUSIC_DEFAULT_URL) return previewSynth.start();
+      previewAudio.src = t.url;
+      return previewAudio.play().then(() => true, () => false);
+    }
+    previewAudio.addEventListener('ended', function () { previewId = null; });
+
+    function renderMusikPage(el) {
+      stopPreview();
+      const data = getMusic();
+      el.innerHTML = `
+        <div class="card p-3 mb-3">
+          <h5 class="fw-bold mb-3">🎵 Musik Latar Halaman Utama</h5>
+          <div class="form-check form-switch fs-5 mb-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="musikOn" ${data.enabled ? 'checked' : ''}>
+            <label class="form-check-label" for="musikOn">Aktifkan pemutar musik</label>
+          </div>
+          <small class="text-secondary">Lagu pertama diputar otomatis saat pengunjung membuka halaman utama. Beberapa browser baru mengizinkan suara setelah pengunjung menyentuh layar sekali.</small>
+        </div>
+        <div class="card p-3 mb-3">
+          <h6 class="fw-bold mb-3">➕ Tambah Lagu</h6>
+          <form id="formMusik" autocomplete="off" class="row g-2">
+            <div class="col-12 col-md-4">
+              <input type="text" name="judul" class="form-control" maxlength="60" placeholder="Judul lagu" required>
+            </div>
+            <div class="col-12 col-md-5">
+              <input type="text" name="url" class="form-control" placeholder="https://contoh.com/lagu.mp3" required>
+            </div>
+            <div class="col-12 col-md-3 d-grid">
+              <button type="submit" class="btn btn-teh">Tambah</button>
+            </div>
+          </form>
+          <small class="text-secondary d-block mt-2">Gunakan tautan langsung ke berkas audio (.mp3, .ogg, .wav, .m4a). Tautan YouTube atau Spotify tidak bisa diputar.</small>
+        </div>
+        <div class="card p-3 mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h6 class="fw-bold mb-0">📃 Daftar Lagu</h6>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnMusikDefault">Kembalikan Lagu Bawaan</button>
+          </div>
+          <div id="musikList"></div>
+        </div>`;
+      const list = el.querySelector('#musikList');
+      function drawList() {
+        const d = getMusic();
+        if (!d.tracks.length) {
+          list.innerHTML = '<p class="text-secondary mb-0">Belum ada lagu. Pemutar disembunyikan sampai ada lagu.</p>';
+          return;
+        }
+        list.innerHTML = d.tracks.map((t, i) => `
+          <div class="music-row" data-id="${t.id}">
+            <div class="music-info">
+              <strong>${i + 1}. ${esc(t.title)}</strong>
+              <small data-no-i18n>${t.url === MUSIC_DEFAULT_URL ? 'Lagu bawaan (dibuat otomatis oleh sistem)' : esc(t.url)}</small>
+            </div>
+            <div class="music-actions">
+              <button type="button" class="btn btn-sm btn-outline-success" data-act="test">${previewId === t.id ? 'Stop' : 'Tes'}</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-act="edit">Ganti</button>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-act="del">Hapus</button>
+            </div>
+          </div>`).join('');
+      }
+      drawList();
+      el.querySelector('#musikOn').addEventListener('change', function () {
+        musicSetEnabled(this.checked);
+        toast(this.checked ? 'Pemutar musik diaktifkan.' : 'Pemutar musik dimatikan.');
+      });
+      el.querySelector('#formMusik').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const f = this.elements;
+        if (!validMusicUrl(f.url.value)) {
+          alert('Tautan tidak valid. Gunakan alamat https:// ke berkas audio.');
+          return;
+        }
+        if (musicAdd(f.judul.value, f.url.value)) {
+          this.reset();
+          drawList();
+          toast('Lagu ditambahkan.');
+        }
+      });
+      el.querySelector('#btnMusikDefault').addEventListener('click', function () {
+        if (!confirm('Kembalikan daftar lagu ke lagu bawaan saja?')) return;
+        stopPreview();
+        if (musicRestoreDefault()) {
+          drawList();
+          toast('Lagu bawaan dikembalikan.');
+        }
+      });
+      list.addEventListener('click', function (e) {
+        const b = e.target.closest('button[data-act]');
+        if (!b) return;
+        const row = b.closest('.music-row');
+        const id = Number(row.dataset.id);
+        const t = getMusic().tracks.find(x => x.id === id);
+        if (!t) return;
+        if (b.dataset.act === 'test') {
+          if (previewId === id) {
+            stopPreview();
+            drawList();
+            return;
+          }
+          startPreview(t).then(function (ok) {
+            if (!ok) {
+              previewId = null;
+              toast('Lagu tidak dapat diputar. Periksa tautannya.');
+            }
+            drawList();
+          });
+          drawList();
+        } else if (b.dataset.act === 'del') {
+          if (!confirm('Hapus lagu ini dari daftar?')) return;
+          if (previewId === id) stopPreview();
+          musicDelete(id);
+          drawList();
+          toast('Lagu dihapus.');
+        } else if (b.dataset.act === 'edit') {
+          if (row.querySelector('.music-edit')) return;
+          const box = document.createElement('div');
+          box.className = 'music-edit';
+          box.innerHTML = `
+            <input type="text" class="form-control" name="judul" maxlength="60" value="${esc(t.title)}" placeholder="Judul lagu">
+            <input type="text" class="form-control" name="url" value="${esc(t.url === MUSIC_DEFAULT_URL ? '' : t.url)}" placeholder="https://contoh.com/lagu.mp3">
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-teh" data-edit="save">Simpan</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-edit="cancel">Batal</button>
+            </div>`;
+          row.appendChild(box);
+          box.addEventListener('click', function (ev) {
+            const a = ev.target.closest('button[data-edit]');
+            if (!a) return;
+            if (a.dataset.edit === 'cancel') { box.remove(); return; }
+            const title = box.querySelector('[name=judul]').value;
+            const url = box.querySelector('[name=url]').value.trim() || MUSIC_DEFAULT_URL;
+            if (!validMusicUrl(url)) {
+              alert('Tautan tidak valid. Gunakan alamat https:// ke berkas audio.');
+              return;
+            }
+            if (!title.trim()) { alert('Judul wajib diisi.'); return; }
+            if (previewId === id) stopPreview();
+            if (musicUpdate(id, title, url)) {
+              drawList();
+              toast('Lagu diperbarui.');
+            }
+          });
+        }
+      });
+    }
 
     function periodLabel() {
       if (filterMode === 'today') return 'Hari Ini (' + fmtDateKey(todayKey()) + ')';
