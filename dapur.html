@@ -147,7 +147,10 @@
             <strong>${rupiah(o.total)}</strong>
             <span class="badge ${o.metode === 'qris' ? 'bg-primary' : 'bg-secondary'}">${o.metode === 'qris' ? 'QRIS' : 'Tunai'}</span>
           </div>
-          <button type="button" class="btn btn-sm btn-outline-teh" onclick="lihatDetail('${o.id}')">Lihat</button>
+          <div class="done-actions">
+            <button type="button" class="btn btn-sm btn-success" ${validWa(orderWa(o)) ? '' : 'disabled'} onclick="kirimWa('${o.id}')">📲 Kirim Pesan ke WA</button>
+            <button type="button" class="btn btn-sm btn-outline-teh" onclick="lihatDetail('${o.id}')">Lihat</button>
+          </div>
         </div>`;
     }
 
@@ -349,7 +352,7 @@
           </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
-              <thead><tr><th>Nama</th><th>Kategori</th><th>Status</th></tr></thead>
+              <thead><tr><th>Nama</th><th>Kategori</th><th>Status</th><th>Aktif</th></tr></thead>
               <tbody id="stokBody"></tbody>
             </table>
           </div>
@@ -361,7 +364,7 @@
       fillStok();
     }
 
-    const STATUS_ORDER = { habis: 0, menipis: 1, aman: 2 };
+    const STATUS_ORDER = { habis: 0, nonaktif: 1, menipis: 2, aman: 3 };
 
     function fillStok() {
       if (!stokEl || !document.body.contains(stokEl)) return;
@@ -375,13 +378,19 @@
         .sort((a, b) => STATUS_ORDER[stokStatus(a)] - STATUS_ORDER[stokStatus(b)] || a.nama.localeCompare(b.nama));
       stokEl.querySelector('#stokBody').innerHTML = list.map(m => {
         const st = stokStatus(m);
-        const label = (st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman') + ' (Stok: ' + getStok(m) + ')';
+        const label = (st === 'nonaktif' ? 'Nonaktif' : st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman') + ' (Stok: ' + getStok(m) + ')';
         return `<tr>
           <td>${esc(m.nama)}</td>
           <td>${esc(m.kategori)}</td>
           <td><span class="badge badge-stok-${st}">${label}</span></td>
+          <td>
+            <label class="ios-switch">
+              <input type="checkbox" ${isAktif(m) ? 'checked' : ''} disabled aria-label="Aktif">
+              <span class="ios-slider"></span>
+            </label>
+          </td>
         </tr>`;
-      }).join('') || '<tr><td colspan="3" class="text-center text-secondary">Tidak ada item yang cocok.</td></tr>';
+      }).join('') || '<tr><td colspan="4" class="text-center text-secondary">Tidak ada item yang cocok.</td></tr>';
     }
 
     function renderRekapPage(el) {

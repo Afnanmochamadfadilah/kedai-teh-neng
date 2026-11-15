@@ -102,6 +102,11 @@ const I18N_EN = {
   'Seluruh data pesanan berhasil direset.': 'All order data has been reset.',
   'Reset Pengaturan ke Semula': 'Reset Settings to Default',
   'Reset Pengaturan Awal': 'Factory Settings Reset',
+  'Nonaktif': 'Inactive',
+  'Aktif': 'Active',
+  'Produk diaktifkan.': 'Product activated.',
+  'Produk dinonaktifkan.': 'Product deactivated.',
+  'Sakelar hijau = tersedia untuk dipesan. Abu-abu = nonaktif dan tidak bisa dipesan pembeli.': 'Green switch = available to order. Gray = inactive and cannot be ordered by customers.',
   'Tanggal Pesanan Selesai': 'Completed Order Date',
   'Semua tanggal (per hari)': 'All dates (per day)',
   'Belum ada pesanan selesai pada tanggal ini.': 'No completed orders on this date.',
@@ -415,6 +420,9 @@ const I18N_RULES = [
   [/^Menipis \(Stok: (\d+)\)$/, 'Low (Stock: $1)'],
   [/^Habis \(Stok: (\d+)\)$/, 'Sold out (Stock: $1)'],
   [/^Selesai • (\d{2}:\d{2})$/, 'Done • $1'],
+  [/^Nonaktif \(Stok: (\d+)\)$/, 'Inactive (Stock: $1)'],
+  [/^"(.+)" sedang tidak tersedia\.$/, '"$1" is currently unavailable.'],
+  [/^"(.+)" sedang tidak tersedia\. Hapus dari keranjang\.$/, '"$1" is currently unavailable. Remove it from the cart.'],
   [/^(\d+) pesanan$/, '$1 orders'],
   [/^(\d{2}\/\d{2}\/\d{4})( • Hari Ini)? \((\d+) pesanan\)$/, (m, a, b, c) => a + (b ? ' • Today' : '') + ' (' + c + ' orders)'],
   [/^Minggu Ini \((.*)\)$/, 'This Week ($1)'],
@@ -1264,7 +1272,7 @@ function addMenu(nama, harga, kategori, foto, stok) {
   const menu = getMenu();
   const id = menu.length ? Math.max(...menu.map(m => m.id)) + 1 : 1;
   menu.push({
-    id, nama, harga: Number(harga), kategori, foto: foto || '',
+    id, nama, harga: Number(harga), kategori, foto: foto || '', aktif: true,
     stok: stok === undefined || stok === '' ? defaultStok(kategori) : Math.max(0, parseInt(stok, 10) || 0)
   });
   dbSet(KEYS.menu, menu);
@@ -1293,7 +1301,14 @@ function addStok(id, delta) {
   if (!m) return 0;
   return setStok(id, getStok(m) + delta);
 }
+function isAktif(m) { return !!m && m.aktif !== false; }
+function setAktif(id, on) {
+  if (!canEditStock()) return false;
+  updateMenu(id, { aktif: !!on });
+  return true;
+}
 function stokStatus(m) {
+  if (!isAktif(m)) return 'nonaktif';
   const s = getStok(m);
   if (s <= 0) return 'habis';
   if (s <= LOW_STOCK) return 'menipis';
@@ -1333,13 +1348,14 @@ function stokRequired(items) {
 }
 function stokTersisa(id) {
   const m = getMenu().find(x => x.id === id);
-  if (!m) return 0;
+  if (!m || !isAktif(m)) return 0;
   return getStok(m) - (stokRequired(cart)[id] || 0);
 }
 
 function cartAddMenu(menuId) {
   const item = getMenu().find(m => m.id === menuId);
   if (!item) return 'Menu tidak ditemukan.';
+  if (!isAktif(item)) return '"' + item.nama + '" sedang tidak tersedia.';
   if (stokTersisa(menuId) <= 0) return 'Stok "' + item.nama + '" tidak mencukupi.';
   const isDrink = item.kategori === DRINK_CAT;
   cart.push({
@@ -1355,6 +1371,7 @@ function cartAddSeblak(toppingIds) {
   const tops = toppingIds.map(id => all.find(m => m.id === id)).filter(Boolean);
   if (!tops.length) return 'Pilih minimal satu topping.';
   for (const t of tops) {
+    if (!isAktif(t)) return '"' + t.nama + '" sedang tidak tersedia.';
     if (stokTersisa(t.id) <= 0) return 'Stok topping "' + t.nama + '" tidak mencukupi.';
   }
   const harga = getSeblakBase() + tops.reduce((s, t) => s + t.harga, 0);
@@ -1375,6 +1392,7 @@ function cartChangeAt(index, delta) {
     for (const id of ids) {
       if (stokTersisa(id) <= 0) {
         const m = all.find(x => x.id === id);
+        if (m && !isAktif(m)) return '"' + m.nama + '" sedang tidak tersedia.';
         return 'Stok "' + (m ? m.nama : 'item') + '" tidak mencukupi.';
       }
     }
@@ -1411,6 +1429,7 @@ function placeOrder(order, cartItems) {
   for (const id of Object.keys(req)) {
     const m = menu.find(x => x.id === Number(id));
     if (!m) return { ok: false, error: 'Ada menu yang sudah tidak tersedia. Silakan periksa keranjang.' };
+    if (!isAktif(m)) return { ok: false, error: '"' + m.nama + '" sedang tidak tersedia. Hapus dari keranjang.' };
     if (getStok(m) < req[id]) {
       return { ok: false, error: 'Stok "' + m.nama + '" tidak mencukupi (tersisa ' + getStok(m) + ').' };
     }

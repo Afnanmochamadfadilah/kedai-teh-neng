@@ -550,6 +550,7 @@ body.bg-emerald .btn-queue { background: rgba(3, 30, 22, .55); border-color: rgb
 .badge-stok-habis { background: #dc3545; }
 .badge-stok-menipis { background: #fd7e14; }
 .badge-stok-aman { background: #198754; }
+.badge-stok-nonaktif { background: #6c757d; }
 
 .history-card { background: var(--bs-tertiary-bg); }
 .search-box .form-control { border-radius: 50px; padding-left: 18px; }
@@ -835,4 +836,54 @@ img { max-width: 100%; }
   .done-main { flex-basis: calc(100% - 80px); }
   .done-meta { flex-direction: row; align-items: center; gap: 8px; }
   .done-row .btn { margin-left: auto; min-height: 38px; }
+}
+
+.ios-switch {
+  position: relative;
+  display: inline-block;
+  width: 51px;
+  height: 31px;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.ios-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ios-slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  border-radius: 31px;
+  background: #b9bdc4;
+  transition: background .25s ease;
+}
+.ios-slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+  transition: transform .28s cubic-bezier(.4, 0, .2, 1), width .2s ease;
+}
+.ios-switch input:checked + .ios-slider { background: #34c759; }
+.ios-switch input:checked + .ios-slider::before { transform: translateX(20px); }
+.ios-switch:active input:not(:disabled) + .ios-slider::before { width: 33px; }
+.ios-switch:active input:checked:not(:disabled) + .ios-slider::before { transform: translateX(14px); }
+.ios-switch input:focus-visible + .ios-slider { outline: 2px solid #34c759; outline-offset: 2px; }
+.ios-switch input:disabled + .ios-slider { cursor: not-allowed; opacity: .6; }
+tr.row-off td:not(.td-aktif) { opacity: .5; }
+.done-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+@media (max-width: 576px) {
+  .done-actions { width: 100%; justify-content: stretch; }
+  .done-actions .btn { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ios-slider, .ios-slider::before { transition: none; }
 }

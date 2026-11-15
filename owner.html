@@ -348,7 +348,8 @@
         </div>
 
         <div class="card p-3">
-          <h5 class="fw-bold mb-3">📋 Daftar Menu, Harga &amp; Stok</h5>
+          <h5 class="fw-bold mb-2">📋 Daftar Menu, Harga &amp; Stok</h5>
+          <p class="small text-secondary">Sakelar hijau = tersedia untuk dipesan. Abu-abu = nonaktif dan tidak bisa dipesan pembeli.</p>
           <div class="row g-2 mb-3">
             <div class="col-md-5"><input type="search" id="menuSearch" class="form-control form-control-sm" placeholder="🔍 Cari menu / topping…"></div>
             <div class="col-md-4">
@@ -360,7 +361,7 @@
           </div>
           <div class="table-responsive">
             <table class="table align-middle">
-              <thead><tr><th>Foto</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Stok</th><th></th></tr></thead>
+              <thead><tr><th>Foto</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Stok</th><th>Aktif</th><th></th></tr></thead>
               <tbody id="menuBody"></tbody>
             </table>
           </div>
@@ -384,8 +385,9 @@
         el.querySelector('#menuCount').textContent = list.length + ' item';
         body.innerHTML = list.map(m => {
           const st = stokStatus(m);
+          const on = isAktif(m);
           return `
-          <tr>
+          <tr class="${on ? '' : 'row-off'}">
             <td><img class="thumb" src="${esc(m.foto || placeholderImg(m.nama))}" data-name="${esc(m.nama)}" alt=""></td>
             <td>${esc(m.nama)}</td>
             <td>${esc(m.kategori)}</td>
@@ -398,15 +400,21 @@
             <td>
               <div class="d-flex align-items-center gap-1">
                 <input type="number" class="form-control form-control-sm stok-input" min="0" value="${getStok(m)}" data-field="stok" data-id="${m.id}">
-                <span class="badge badge-stok-${st}">${st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman'}</span>
+                <span class="badge badge-stok-${st}">${st === 'nonaktif' ? 'Nonaktif' : st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman'}</span>
               </div>
+            </td>
+            <td class="td-aktif">
+              <label class="ios-switch" title="${on ? 'Aktif' : 'Nonaktif'}">
+                <input type="checkbox" data-field="aktif" data-id="${m.id}" ${on ? 'checked' : ''} aria-label="Aktif">
+                <span class="ios-slider"></span>
+              </label>
             </td>
             <td class="text-end text-nowrap">
               <button class="btn btn-sm btn-outline-success" data-act="edit" data-id="${m.id}">✏️ Edit</button>
               <button class="btn btn-sm btn-outline-danger" data-act="del" data-id="${m.id}">Hapus</button>
             </td>
           </tr>`;
-        }).join('') || '<tr><td colspan="6" class="text-secondary text-center">Tidak ada item yang cocok.</td></tr>';
+        }).join('') || '<tr><td colspan="7" class="text-secondary text-center">Tidak ada item yang cocok.</td></tr>';
       }
 
       function readPhoto(fileInput, urlInput, cb) {
@@ -506,6 +514,12 @@
         const inp = e.target.closest('input[data-field]');
         if (!inp) return;
         const id = Number(inp.dataset.id);
+        if (inp.dataset.field === 'aktif') {
+          setAktif(id, inp.checked);
+          renderRows();
+          toast(inp.checked ? 'Produk diaktifkan.' : 'Produk dinonaktifkan.');
+          return;
+        }
         if (inp.dataset.field === 'harga') {
           const n = Number(inp.value);
           if (isNaN(n) || n < 0) { alert('Harga tidak valid.'); renderRows(); return; }

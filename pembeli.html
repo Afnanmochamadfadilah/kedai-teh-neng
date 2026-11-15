@@ -159,6 +159,7 @@
 
     function stokLabelHtml(m) {
       const s = getStok(m);
+      if (!isAktif(m)) return '<span class="badge bg-secondary">Nonaktif</span>';
       if (s <= 0) return '<span class="badge bg-danger">Habis</span>';
       return `<small class="${s <= LOW_STOCK ? 'text-danger fw-semibold' : 'text-secondary'}">Stok: ${s}</small>`;
     }
@@ -167,10 +168,11 @@
       return '<div class="row g-3">' + list.map(m => {
         const stok = getStok(m);
         const tersisa = stokTersisa(m.id);
-        const btnLabel = stok <= 0 ? 'Habis' : (tersisa <= 0 ? 'Maks. di keranjang' : '+ Tambah');
+        const aktif = isAktif(m);
+        const btnLabel = !aktif ? 'Nonaktif' : stok <= 0 ? 'Habis' : (tersisa <= 0 ? 'Maks. di keranjang' : '+ Tambah');
         return `
         <div class="col-6 col-md-4 col-lg-3">
-          <div class="card menu-card ${stok <= 0 ? 'soldout' : ''}">
+          <div class="card menu-card ${stok <= 0 || !aktif ? 'soldout' : ''}">
             <img src="${esc(m.foto || placeholderImg(m.nama))}" data-name="${esc(m.nama)}" alt="${esc(m.nama)}">
             <div class="card-body d-flex flex-column">
               <h6 class="card-title fw-bold mb-1">${esc(m.nama)}</h6>
@@ -198,7 +200,7 @@
                    onchange="toggleTop(${t.id}, this.checked)">
             <span>
               <span class="d-block">${esc(t.nama)}</span>
-              ${stok <= 0 ? '<span class="badge bg-danger">Habis</span>' : stokLabelHtml(t)}
+              ${stok <= 0 && isAktif(t) ? '<span class="badge bg-danger">Habis</span>' : stokLabelHtml(t)}
             </span>
           </span>
           <small class="price">${rupiah(t.harga)}</small>
@@ -464,7 +466,7 @@
     }
 
     window.addEventListener('storage', function (e) {
-      if (e.key === KEYS.menu) renderCart();
+      if (e.key === KEYS.menu) { renderCart(); renderCatalog(); }
     });
 
     renderCategories();
