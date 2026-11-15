@@ -887,3 +887,19 @@ tr.row-off td:not(.td-aktif) { opacity: .5; }
 @media (prefers-reduced-motion: reduce) {
   .ios-slider, .ios-slider::before { transition: none; }
 }
+
+.bg-access {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  font-size: .85rem;
+  font-weight: 600;
+}
+.bg-access.unlocked { background: rgba(52, 199, 89, .14); color: #1f8a3d; }
+.bg-access.locked { background: rgba(108, 117, 125, .16); color: var(--bs-secondary-color); margin-bottom: 8px; }
+[data-bs-theme="dark"] .bg-access.unlocked { color: #6fdc8c; }

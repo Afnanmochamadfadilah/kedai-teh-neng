@@ -102,6 +102,10 @@ const I18N_EN = {
   'Seluruh data pesanan berhasil direset.': 'All order data has been reset.',
   'Reset Pengaturan ke Semula': 'Reset Settings to Default',
   'Reset Pengaturan Awal': 'Factory Settings Reset',
+  'Terkunci': 'Locked',
+  'Kunci Sekarang': 'Lock Now',
+  'Pengaturan background dikunci.': 'Background settings locked.',
+  'Akses ditolak. Login sebagai Owner atau Karyawan untuk mengubah background.': 'Access denied. Log in as Owner or Staff to change the background.',
   'Nonaktif': 'Inactive',
   'Aktif': 'Active',
   'Produk diaktifkan.': 'Product activated.',
@@ -420,6 +424,7 @@ const I18N_RULES = [
   [/^Menipis \(Stok: (\d+)\)$/, 'Low (Stock: $1)'],
   [/^Habis \(Stok: (\d+)\)$/, 'Sold out (Stock: $1)'],
   [/^Selesai • (\d{2}:\d{2})$/, 'Done • $1'],
+  [/^Terbuka \(login sebagai (.+)\)$/, 'Unlocked (logged in as $1)'],
   [/^Nonaktif \(Stok: (\d+)\)$/, 'Inactive (Stock: $1)'],
   [/^"(.+)" sedang tidak tersedia\.$/, '"$1" is currently unavailable.'],
   [/^"(.+)" sedang tidak tersedia\. Hapus dari keranjang\.$/, '"$1" is currently unavailable. Remove it from the cart.'],
@@ -811,9 +816,13 @@ function getBg() {
   if (isNaN(b.dim)) b.dim = BG_DEFAULT.dim;
   return b;
 }
-function setBg(patch) {
+function bgWrite(patch) {
   const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
   return dbSet(KEYS.bg, Object.assign({}, BG_DEFAULT, raw, patch));
+}
+function setBg(patch) {
+  if (!canChangeBackground()) return false;
+  return bgWrite(patch);
 }
 
 let bgEngine = null;
@@ -1162,7 +1171,7 @@ function applyBackground() {
   if (wp) wp.style.backgroundImage = 'url("' + b.image + '")';
   if (b.mode === 'image' && b.lum == null) {
     imageLuminance(b.image).then(function (lum) {
-      setBg({ lum: lum });
+      bgWrite({ lum: lum });
       const cur = getBg();
       if (cur.mode === 'image') applyTone(cur);
     });
@@ -1229,7 +1238,7 @@ function login(role, username, password) {
   if (role === 'owner') {
     const c = getOwnerCred();
     if (username === c.username && password === c.password) {
-      dbSet(KEYS.session, { role: 'owner', user: username });
+      dbSet(KEYS.session, { role: 'owner', user: username, ts: Date.now() });
       return true;
     }
     return false;
@@ -1237,13 +1246,24 @@ function login(role, username, password) {
   if (role === 'karyawan') {
     const found = dbGet(KEYS.karyawan, []).find(k => k.username === username && k.password === password);
     if (found) {
-      dbSet(KEYS.session, { role: 'karyawan', user: username });
+      dbSet(KEYS.session, { role: 'karyawan', user: username, ts: Date.now() });
       return true;
     }
   }
   return false;
 }
 function getSession() { return dbGet(KEYS.session, null); }
+
+const SESSION_TTL = 12 * 60 * 60 * 1000;
+function isStaffSession() {
+  const s = getSession();
+  if (!s || !s.user || !s.ts) return false;
+  if (Date.now() - s.ts > SESSION_TTL) return false;
+  if (s.role === 'owner') return s.user === getOwnerCred().username;
+  if (s.role === 'karyawan') return getKaryawan().some(k => k.username === s.user);
+  return false;
+}
+function canChangeBackground() { return isStaffSession(); }
 
 function logout() {
   try { localStorage.removeItem(KEYS.session); } catch (e) {}
@@ -2116,7 +2136,9 @@ function registerSettingsPages(pages) {
 
 function renderDisplaySettings(el) {
   const sess = getSession();
-  const canBg = !!sess && (sess.role === 'owner' || sess.role === 'karyawan');
+  const canBg = canChangeBackground();
+  const onPortal = !!document.querySelector('.bg-anim');
+  const roleLabel = sess && sess.role === 'owner' ? 'Owner' : 'Karyawan';
   el.innerHTML = `
     <div class="card p-3 mb-3">
       <label class="form-label fw-semibold d-block">Mode Tampilan</label>
@@ -2136,6 +2158,10 @@ function renderDisplaySettings(el) {
     </div>
     ${canBg ? `<div class="card p-3 mb-3">
       <label class="form-label fw-semibold d-block">🎞️ Background &amp; Animasi Halaman Utama</label>
+      <div class="bg-access unlocked">
+        <span>🔓 <span>Terbuka (login sebagai ${esc(roleLabel)}: ${esc(sess.user)})</span></span>
+        ${onPortal ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="btnBgLock">Kunci Sekarang</button>' : ''}
+      </div>
       <div class="bg-options" id="bgOptions">
         ${BG_MODES.map(m => `
           <label class="bg-option" data-mode="${m.id}">
@@ -2160,6 +2186,7 @@ function renderDisplaySettings(el) {
       </div>
     </div>` : `<div class="card p-3 mb-3">
       <label class="form-label fw-semibold d-block">🎞️ Background &amp; Animasi Halaman Utama</label>
+      <div class="bg-access locked"><span>🔒 <span>Terkunci</span></span></div>
       <p class="small text-secondary mb-0">Background dan animasi halaman utama hanya dapat diubah oleh Owner atau Karyawan setelah login.</p>
     </div>`}
     <p class="small text-secondary mb-0">Pengaturan tersimpan otomatis di perangkat ini.</p>`;
@@ -2171,6 +2198,20 @@ function renderDisplaySettings(el) {
   const dimWrap = el.querySelector('#wpDimWrap');
   const dimInput = el.querySelector('#wpDim');
   const dimVal = el.querySelector('#wpDimVal');
+  function guardBg() {
+    if (canChangeBackground()) return true;
+    toast('Akses ditolak. Login sebagai Owner atau Karyawan untuk mengubah background.');
+    renderDisplaySettings(el);
+    return false;
+  }
+  const lockBtn = el.querySelector('#btnBgLock');
+  if (lockBtn) {
+    lockBtn.addEventListener('click', function () {
+      try { localStorage.removeItem(KEYS.session); } catch (e) {}
+      toast('Pengaturan background dikunci.');
+      renderDisplaySettings(el);
+    });
+  }
   function syncBg() {
     const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
     const cur = getBg();
@@ -2193,6 +2234,7 @@ function renderDisplaySettings(el) {
   }
   bgBox.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('change', function () {
+      if (!guardBg()) return;
       const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
       if (this.value === 'image' && !raw.image) {
         toast('Unggah wallpaper dari galeri terlebih dahulu.');
@@ -2207,6 +2249,7 @@ function renderDisplaySettings(el) {
   el.querySelector('#inWallpaper').addEventListener('change', function () {
     const input = this;
     if (!input.files[0]) return;
+    if (!guardBg()) return;
     compressImage(input.files[0], 1920, function (data) {
       imageLuminance(data).then(function (lum) {
         if (setBg({ mode: 'image', image: data, lum: lum })) {
@@ -2218,12 +2261,14 @@ function renderDisplaySettings(el) {
     }, 0.82);
   });
   el.querySelector('#btnWallpaperDel').addEventListener('click', function () {
+    if (!guardBg()) return;
     const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
     setBg({ mode: raw.mode === 'image' ? 'emerald' : raw.mode, image: '', lum: null });
     syncBg();
     toast('Wallpaper dihapus.');
   });
   dimInput.addEventListener('input', function () {
+    if (!guardBg()) return;
     setBg({ dim: Number(this.value) });
     dimVal.textContent = this.value + '%';
     const box = document.querySelector('.bg-anim');
