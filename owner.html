@@ -654,6 +654,18 @@
           </form>
         </div>
 
+        <div class="card p-3 mb-3 border-warning-subtle">
+          <h5 class="fw-bold mb-1">♻️ Reset Pengaturan Awal</h5>
+          <p class="small text-secondary">Mengembalikan tema, bahasa, wallpaper, logo, nama toko, running text, QRIS, dan harga dasar seblak ke kondisi bawaan. Menu, akun, dan pesanan tidak dihapus. Wajib sandi owner.</p>
+          <form id="formResetSet" autocomplete="off">
+            <div class="mb-3">
+              <label class="form-label">Sandi Owner</label>
+              <input type="password" name="pw" class="form-control" autocomplete="new-password" required>
+            </div>
+            <button class="btn btn-outline-warning" type="submit">Reset Pengaturan ke Semula</button>
+          </form>
+        </div>
+
         <div class="card p-3">
           <h5 class="fw-bold mb-1">🔐 Akun Owner</h5>
           <p class="small text-secondary">Username saat ini: <strong id="curOwnerUser"></strong></p>
@@ -730,6 +742,22 @@
           formReset.reset();
           if (typeof renderStats === 'function') renderStats();
           toast('Seluruh data pesanan berhasil direset.');
+        }
+      });
+      const formResetSet = el.querySelector('#formResetSet');
+      formResetSet.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const pw = formResetSet.elements.pw.value;
+        if (!pw) { alert('Isi sandi owner terlebih dahulu.'); return; }
+        if (pw !== getOwnerCred().password) {
+          alert('Sandi owner salah. Pengaturan tidak diubah.');
+          formResetSet.reset();
+          return;
+        }
+        if (!confirm('Kembalikan semua pengaturan ke kondisi awal bawaan sistem?')) return;
+        if (resetSettingsSecure(pw)) {
+          alert('Pengaturan berhasil dikembalikan ke semula.');
+          window.location.reload();
         }
       });
       el.querySelector('#btnLogoReset').addEventListener('click', function () {

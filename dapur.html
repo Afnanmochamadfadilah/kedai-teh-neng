@@ -60,6 +60,8 @@
 
     let filter = 'semua';
     let rekapEl = null;
+    let rekapMode = 'today';
+    let rekapDate = todayKey();
     let stokEl = null;
 
     registerSettingsPages([
@@ -69,13 +71,12 @@
       },
       {
         id: 'rekap', icon: '💰', title: 'Rekap Setoran Kasir Shift',
-        desc: 'Ringkasan tunai/QRIS dan cetak PDF rekap shift', wide: true, render: renderRekapPage
+        desc: 'Filter periode, ringkasan tunai/QRIS, dan cetak PDF rekap', wide: true, render: renderRekapPage
       }
     ]);
 
     function renderOrders() {
       const orders = getOrders();
-      const sum = summarize(orders);
       document.getElementById('badgeProses').textContent = orders.filter(o => o.status === 'diproses').length;
 
       const list = orders
@@ -84,8 +85,7 @@
 
       document.getElementById('orderList').innerHTML = list.length ? list.map(cardHtml).join('')
         : '<p class="text-secondary text-center my-5">Belum ada pesanan.</p>';
-      renderPrint(orders, sum);
-      fillRekap();
+      refreshRekap();
     }
 
     function cardHtml(o) {
@@ -148,28 +148,42 @@
         </div>`;
     }
 
-    function renderPrint(orders, sum) {
+    function rekapData() {
+      const list = filterOrdersByRange(getOrders(), rekapMode, rekapDate);
+      return { list: list, sum: summarize(list), range: periodRange(rekapMode, rekapDate) };
+    }
+
+    function refreshRekap() {
+      const d = rekapData();
+      renderPrint(d.list, d.sum, d.range.label);
+      fillRekap();
+    }
+
+    function renderPrint(orders, sum, label) {
       const done = orders.filter(o => o.status === 'selesai').sort((a, b) => a.ts - b.ts);
       document.getElementById('printArea').innerHTML = `
         <div class="print-title">
           <h3>${esc(getStoreName())}</h3>
           <h5>REKAP SETORAN SHIFT</h5>
+          <div>Periode: ${esc(label)}</div>
           <div>Dicetak: ${new Date().toLocaleString('id-ID')} • Kasir: ${esc(getSession().user)}</div>
         </div>
         <table class="tbl-compact">
           <thead><tr>
-            <th>No</th><th>Waktu</th><th>Layanan</th><th>Nama</th><th>Item</th><th>Bayar</th><th style="text-align:right">Total</th>
+            <th>No</th><th>Tanggal</th><th>Pesan</th><th>Selesai</th><th>Layanan</th><th>Nama</th><th>Item</th><th>Bayar</th><th style="text-align:right">Total</th>
           </tr></thead>
           <tbody>
             ${done.map(o => `<tr>
               <td>#${String(o.no).padStart(3, '0')}</td>
-              <td>${fmtShort(o.ts)}</td>
+              <td>${fmtDateId(o.ts)}</td>
+              <td>${fmtTimeId(o.ts)}</td>
+              <td>${o.selesaiTs ? fmtTimeId(o.selesaiTs) : '-'}</td>
               <td>${esc(tipeShort(o))}</td>
               <td>${esc(o.nama)}</td>
               <td>${esc(itemsShort(o))}</td>
               <td>${o.metode === 'qris' ? 'QRIS' : 'Tunai'}</td>
               <td style="text-align:right">${rupiah(o.total)}</td></tr>`).join('')
-              || '<tr><td colspan="7" style="text-align:center">Belum ada pesanan selesai</td></tr>'}
+              || '<tr><td colspan="9" style="text-align:center">Belum ada pesanan selesai pada periode ini</td></tr>'}
           </tbody>
         </table>
         <table class="tbl-compact summary-tbl">
@@ -230,7 +244,7 @@
               <tbody id="stokBody"></tbody>
             </table>
           </div>
-          <small class="text-secondary mt-2">Aman = stok cukup • Menipis = hampir habis • Habis = tidak tersedia</small>
+          <small class="text-secondary mt-2">Angka dalam kurung = sisa stok saat ini. Aman = stok cukup • Menipis = hampir habis • Habis = tidak tersedia</small>
         </div>`;
       el.querySelector('#stokSearch').addEventListener('input', fillStok);
       el.querySelector('#stokKat').addEventListener('change', fillStok);
@@ -252,7 +266,7 @@
         .sort((a, b) => STATUS_ORDER[stokStatus(a)] - STATUS_ORDER[stokStatus(b)] || a.nama.localeCompare(b.nama));
       stokEl.querySelector('#stokBody').innerHTML = list.map(m => {
         const st = stokStatus(m);
-        const label = st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman';
+        const label = (st === 'habis' ? 'Habis' : st === 'menipis' ? 'Menipis' : 'Aman') + ' (Stok: ' + getStok(m) + ')';
         return `<tr>
           <td>${esc(m.nama)}</td>
           <td>${esc(m.kategori)}</td>
@@ -263,15 +277,53 @@
 
     function renderRekapPage(el) {
       rekapEl = el;
+      el.innerHTML = '';
       fillRekap();
     }
 
     function fillRekap() {
       if (!rekapEl || !document.body.contains(rekapEl)) return;
-      const orders = getOrders();
-      const s = summarize(orders);
-      const proses = orders.filter(o => o.status === 'diproses').length;
-      rekapEl.innerHTML = `
+      if (!rekapEl.querySelector('#rekapContent')) {
+        rekapEl.innerHTML = `
+          <div class="card p-3 mb-3 rekap-filter">
+            <div class="row g-2 align-items-end">
+              <div class="col-sm-6 col-lg-4">
+                <label class="form-label small fw-semibold mb-1" for="rekapPeriode">Periode Laporan</label>
+                <select id="rekapPeriode" class="form-select">
+                  <option value="today">Hari Ini</option>
+                  <option value="yesterday">Kemarin</option>
+                  <option value="week">Per Minggu</option>
+                  <option value="month">Per Bulan</option>
+                  <option value="date">Tanggal Spesifik</option>
+                </select>
+              </div>
+              <div class="col-sm-6 col-lg-4 ${rekapMode === 'date' ? '' : 'd-none'}" id="rekapTanggalWrap">
+                <label class="form-label small fw-semibold mb-1" for="rekapTanggal">Tanggal</label>
+                <input type="date" id="rekapTanggal" class="form-control">
+              </div>
+            </div>
+          </div>
+          <div id="rekapContent"></div>`;
+        const sel = rekapEl.querySelector('#rekapPeriode');
+        const dt = rekapEl.querySelector('#rekapTanggal');
+        sel.value = rekapMode;
+        dt.value = rekapDate;
+        sel.addEventListener('change', function () {
+          rekapMode = sel.value;
+          rekapEl.querySelector('#rekapTanggalWrap').classList.toggle('d-none', rekapMode !== 'date');
+          refreshRekap();
+        });
+        dt.addEventListener('change', function () {
+          rekapDate = dt.value || todayKey();
+          refreshRekap();
+        });
+      }
+      const d = rekapData();
+      const s = d.sum;
+      const proses = d.list.filter(o => o.status === 'diproses').length;
+      const done = d.list.filter(o => o.status === 'selesai').sort((a, b) => b.ts - a.ts);
+      rekapEl.querySelector('#rekapContent').innerHTML = `
+        <h6 class="fw-bold mb-3">📅 ${esc(d.range.label)}</h6>
         <div class="row g-3">
           <div class="col-lg-4">
             <div class="card stat-card bg-grad-green p-3 h-100">
@@ -296,6 +348,29 @@
               <div class="d-flex justify-content-between"><span>🍽️ Makan di sini</span><strong>${rupiah(s.dinein)}</strong></div>
               <div class="d-flex justify-content-between"><span>🥡 Dibungkus</span><strong>${rupiah(s.bungkus)}</strong></div>
               <div class="d-flex justify-content-between"><span>🛵 Delivery</span><strong>${rupiah(s.delivery)}</strong></div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="card p-3">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead><tr>
+                    <th>No</th><th>Tanggal</th><th>Jam Pesan</th><th>Jam Selesai</th><th>Nama</th><th>Layanan</th><th>Bayar</th><th class="text-end">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    ${done.map(o => `<tr>
+                      <td>#${String(o.no).padStart(3, '0')}</td>
+                      <td>${fmtDateId(o.ts)}</td>
+                      <td>${fmtTimeId(o.ts)}</td>
+                      <td>${o.selesaiTs ? fmtTimeId(o.selesaiTs) : '-'}</td>
+                      <td>${esc(o.nama)}</td>
+                      <td>${esc(tipeShort(o))}</td>
+                      <td>${o.metode === 'qris' ? 'QRIS' : 'Tunai'}</td>
+                      <td class="text-end">${rupiah(o.total)}</td></tr>`).join('')
+                      || '<tr><td colspan="8" class="text-center text-secondary">Belum ada pesanan selesai pada periode ini.</td></tr>'}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
           <div class="col-12">

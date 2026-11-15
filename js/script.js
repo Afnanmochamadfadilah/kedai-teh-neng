@@ -14,12 +14,12 @@ const KEYS = {
 };
 
 const LOGO_DEFAULT = { type: 'emoji', value: '🍵' };
-const BG_DEFAULT = { mode: 'aurora', image: '', dim: 18 };
+const BG_DEFAULT = { mode: 'emerald', image: '', dim: 18 };
 const BG_MODES = [
-  { id: 'aurora', icon: '✨', title: 'Aurora Soft', desc: 'Mesh aurora lembut dan partikel emas, bereaksi pada mouse atau sentuhan' },
+  { id: 'emerald', icon: '💎', title: 'Deep Emerald Luxury', desc: 'Zamrud pekat dengan aksen emas mewah dan partikel berpendar' },
   { id: 'neon', icon: '🌃', title: 'Cyber Neon', desc: 'Aliran neon futuristik dengan grid perspektif' },
-  { id: 'minimal', icon: '💫', title: 'Minimalist Clean', desc: 'Latar bersih dengan cahaya halus dan partikel ringan' },
-  { id: 'static', icon: '🎨', title: 'Static Color', desc: 'Warna solid tanpa animasi, hemat baterai' },
+  { id: 'matcha', icon: '🍃', title: 'Matcha Mist Flow', desc: 'Kabut matcha terang yang mengalir lembut dan menenangkan' },
+  { id: 'espresso', icon: '☕', title: 'Warm Espresso Glass', desc: 'Cokelat espresso hangat dengan kilau kaca dan uap lembut' },
   { id: 'image', icon: '📷', title: 'Wallpaper dari Galeri', desc: 'Foto kustom tajam dengan overlay yang bisa diatur' }
 ];
 
@@ -100,6 +100,28 @@ const I18N_EN = {
   'Sandi owner salah. Data pesanan tidak dihapus.': 'Wrong owner password. Order data was not deleted.',
   'Hapus SEMUA data pesanan? Tindakan ini tidak bisa dibatalkan.': 'Delete ALL order data? This cannot be undone.',
   'Seluruh data pesanan berhasil direset.': 'All order data has been reset.',
+  'Reset Pengaturan ke Semula': 'Reset Settings to Default',
+  'Reset Pengaturan Awal': 'Factory Settings Reset',
+  'Sandi owner salah. Pengaturan tidak diubah.': 'Wrong owner password. Settings were not changed.',
+  'Filter periode, ringkasan tunai/QRIS, dan cetak PDF rekap': 'Period filter, cash/QRIS summary, and PDF recap',
+  'Angka dalam kurung = sisa stok saat ini. Aman = stok cukup • Menipis = hampir habis • Habis = tidak tersedia': 'The number in brackets is the current remaining stock. Safe = enough stock • Low = almost out • Sold out = unavailable',
+  'Mengembalikan tema, bahasa, wallpaper, logo, nama toko, running text, QRIS, dan harga dasar seblak ke kondisi bawaan. Menu, akun, dan pesanan tidak dihapus. Wajib sandi owner.': 'Restores theme, language, wallpaper, logo, store name, running text, QRIS, and seblak base price to defaults. Menu, accounts, and orders are not deleted. Owner password required.',
+  'Kembalikan semua pengaturan ke kondisi awal bawaan sistem?': 'Restore all settings to the system defaults?',
+  'Pengaturan berhasil dikembalikan ke semula.': 'Settings restored to defaults.',
+  'Deep Emerald Luxury': 'Deep Emerald Luxury',
+  'Zamrud pekat dengan aksen emas mewah dan partikel berpendar': 'Deep emerald with luxurious gold accents and glowing particles',
+  'Matcha Mist Flow': 'Matcha Mist Flow',
+  'Kabut matcha terang yang mengalir lembut dan menenangkan': 'Bright matcha mist that flows softly and calmly',
+  'Warm Espresso Glass': 'Warm Espresso Glass',
+  'Cokelat espresso hangat dengan kilau kaca dan uap lembut': 'Warm espresso brown with glass sheen and soft steam',
+  'Periode Laporan': 'Report Period',
+  'Per Minggu': 'Weekly',
+  'Per Bulan': 'Monthly',
+  'Tanggal Spesifik': 'Specific Date',
+  'Jam Pesan': 'Order Time',
+  'Jam Selesai': 'Done Time',
+  'Belum ada pesanan selesai pada periode ini.': 'No completed orders in this period.',
+  'Tutup': 'Close',
   'Logo Toko': 'Store Logo',
   'Ikon / Inisial Logo': 'Logo Icon / Initials',
   'Isi emoji atau 1-3 huruf, lalu simpan.': 'Enter an emoji or 1-3 letters, then save.',
@@ -384,6 +406,13 @@ const I18N_RULES = [
   [/^Meja (.+)$/, (m, a) => 'Table ' + a],
   [/^Login: (.*)$/, (m, a) => 'Logged in: ' + a],
   [/^Stok: (\d+)$/, 'Stock: $1'],
+  [/^Aman \(Stok: (\d+)\)$/, 'Safe (Stock: $1)'],
+  [/^Menipis \(Stok: (\d+)\)$/, 'Low (Stock: $1)'],
+  [/^Habis \(Stok: (\d+)\)$/, 'Sold out (Stock: $1)'],
+  [/^Selesai • (\d{2}:\d{2})$/, 'Done • $1'],
+  [/^Minggu Ini \((.*)\)$/, 'This Week ($1)'],
+  [/^Bulan Ini \((.*)\)$/, 'This Month ($1)'],
+  [/^Tanggal (\d{2}\/\d{2}\/\d{4})$/, 'Date $1'],
   [/^Harga (Rp .+)$/, 'Price $1'],
   [/^(\d+) topping dipilih$/, '$1 toppings selected'],
   [/^(\d+) pesanan selesai$/, '$1 orders done'],
@@ -759,7 +788,8 @@ function getSeblakBase() { return Number(dbGet(KEYS.seblakBase, 0)) || 0; }
 function getBg() {
   const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
   const b = Object.assign({}, BG_DEFAULT, raw);
-  if (b.mode === 'wave') b.mode = 'neon';
+  const legacy = { wave: 'neon', aurora: 'emerald', minimal: 'matcha', static: 'espresso' };
+  if (legacy[b.mode]) b.mode = legacy[b.mode];
   if (!BG_MODES.some(m => m.id === b.mode)) b.mode = BG_DEFAULT.mode;
   if (b.mode === 'image' && !b.image) b.mode = BG_DEFAULT.mode;
   b.dim = Math.max(0, Math.min(60, Number(b.dim)));
@@ -803,6 +833,7 @@ function startBgEngine(canvas, mode) {
   const sprites = {
     gold: glowSprite('255,205,100'),
     goldDark: glowSprite('226,150,30'),
+    cream: glowSprite('255,226,190'),
     cyan: glowSprite('0,240,255'),
     pink: glowSprite('255,60,214'),
     lime: glowSprite('80,255,150'),
@@ -811,10 +842,9 @@ function startBgEngine(canvas, mode) {
   };
   const neonColors = [[0, 240, 255], [255, 60, 214], [80, 255, 150], [255, 200, 90]];
   const neonKeys = ['cyan', 'pink', 'lime', 'gold'];
-  const isDark = () => document.documentElement.getAttribute('data-bs-theme') === 'dark';
 
   function seed() {
-    const base = mode === 'neon' ? 80 : mode === 'minimal' ? 34 : 72;
+    const base = { neon: 80, matcha: 40, espresso: 46, emerald: 72 }[mode] || 60;
     const n = Math.max(26, Math.round(base * Math.min(1.2, (S.w * S.h) / (1280 * 720))));
     S.parts = [];
     for (let i = 0; i < n; i++) {
@@ -824,7 +854,7 @@ function startBgEngine(canvas, mode) {
         r: 0.8 + Math.random() * 2.4,
         ph: Math.random() * 6.28,
         sp: 0.6 + Math.random() * 1.4,
-        vy: mode === 'neon' ? (Math.random() - 0.5) * 8 : -(6 + Math.random() * 16),
+        vy: mode === 'neon' ? (Math.random() - 0.5) * 8 : mode === 'espresso' ? -(4 + Math.random() * 10) : -(6 + Math.random() * 16),
         vx: mode === 'neon' ? 18 + Math.random() * 40 : (Math.random() - 0.5) * 6,
         k: neonKeys[i % 4]
       });
@@ -858,16 +888,14 @@ function startBgEngine(canvas, mode) {
       if (p.x < -12) p.x = S.w + 12;
     });
   }
-  function drawParts(dark) {
-    ctx.globalCompositeOperation = dark || mode === 'neon' ? 'lighter' : 'source-over';
+  function drawParts() {
+    ctx.globalCompositeOperation = mode === 'matcha' ? 'source-over' : 'lighter';
+    const keys = { neon: null, matcha: 'mintDark', espresso: 'cream', emerald: 'gold' };
     S.parts.forEach(p => {
       const a = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(p.ph * 2));
-      let key;
-      if (mode === 'neon') key = p.k;
-      else if (mode === 'minimal') key = dark ? 'mint' : 'mintDark';
-      else key = dark ? 'gold' : 'goldDark';
-      const s = p.r * 9;
-      ctx.globalAlpha = a * (mode === 'minimal' ? 0.75 : 1);
+      const key = mode === 'neon' ? p.k : keys[mode] || 'gold';
+      const s = p.r * (mode === 'espresso' ? 11 : 9);
+      ctx.globalAlpha = a * (mode === 'matcha' ? 0.7 : mode === 'espresso' ? 0.6 : 1);
       ctx.drawImage(sprites[key], p.x - s / 2, p.y - s / 2, s, s);
     });
     ctx.globalAlpha = 1;
@@ -930,17 +958,17 @@ function startBgEngine(canvas, mode) {
     ctx.lineWidth = 0.6;
     ctx.stroke();
   }
-  function drawAurora(dark) {
-    fillBase(dark ? '#06120e' : '#f3fbf6', dark ? '#0c1b27' : '#fff4e2');
+  function drawEmerald() {
+    fillBase('#03130d', '#0a2b22');
     const list = [
-      { c: '82,183,136', x: 0.2, y: 0.25, ax: 0.12, ay: 0.1, s: 0.11, r: 0.5, par: 0.16 },
-      { c: '0,200,190', x: 0.78, y: 0.3, ax: 0.1, ay: 0.12, s: 0.09, r: 0.46, par: -0.14 },
-      { c: '244,162,97', x: 0.55, y: 0.82, ax: 0.14, ay: 0.08, s: 0.13, r: 0.44, par: 0.2 },
-      { c: '140,110,255', x: 0.92, y: 0.85, ax: 0.08, ay: 0.08, s: 0.1, r: 0.4, par: -0.18 }
+      { c: '16,185,129', x: 0.2, y: 0.25, ax: 0.12, ay: 0.1, s: 0.11, r: 0.5, par: 0.16 },
+      { c: '4,120,87', x: 0.78, y: 0.3, ax: 0.1, ay: 0.12, s: 0.09, r: 0.5, par: -0.14 },
+      { c: '212,175,55', x: 0.55, y: 0.85, ax: 0.14, ay: 0.06, s: 0.13, r: 0.36, par: 0.2 },
+      { c: '52,211,153', x: 0.92, y: 0.8, ax: 0.08, ay: 0.08, s: 0.1, r: 0.36, par: -0.18 }
     ];
     blobs(list, 0.42, 'lighter');
-    ribbons(12, dark ? '150,255,215' : '45,130,95', dark ? 1 : 0.9, dark ? 'lighter' : 'source-over');
-    drawParts(dark);
+    ribbons(12, '226,190,90', 0.75, 'lighter');
+    drawParts();
   }
   function drawNeon() {
     fillBase('#04070f', '#0b1024');
@@ -988,31 +1016,43 @@ function startBgEngine(canvas, mode) {
       ctx.drawImage(sprites[neonKeys[k % 4]], hx - 17, flowY(hx, k) - 17, 34, 34);
       ctx.globalAlpha = 1;
     }
-    drawParts(true);
+    drawParts();
   }
-  function drawMinimal(dark) {
-    fillBase(dark ? '#09130f' : '#f7fbf8', dark ? '#0f1d18' : '#eef7f1');
+  function drawMatcha() {
+    fillBase('#edf5e4', '#f8f3df');
     const list = [
-      { c: '120,215,175', x: 0.25, y: 0.3, ax: 0.1, ay: 0.08, s: 0.1, r: 0.42, par: 0.12 },
-      { c: '255,205,110', x: 0.78, y: 0.7, ax: 0.1, ay: 0.1, s: 0.12, r: 0.38, par: -0.12 },
-      { c: '90,200,210', x: 0.6, y: 0.2, ax: 0.08, ay: 0.06, s: 0.08, r: 0.34, par: 0.1 }
+      { c: '150,190,110', x: 0.22, y: 0.3, ax: 0.12, ay: 0.1, s: 0.1, r: 0.5, par: 0.14 },
+      { c: '190,222,150', x: 0.8, y: 0.28, ax: 0.1, ay: 0.12, s: 0.08, r: 0.46, par: -0.12 },
+      { c: '236,226,168', x: 0.55, y: 0.85, ax: 0.14, ay: 0.06, s: 0.12, r: 0.44, par: 0.18 },
+      { c: '120,180,140', x: 0.95, y: 0.75, ax: 0.08, ay: 0.08, s: 0.09, r: 0.36, par: -0.16 }
     ];
-    blobs(list, dark ? 0.2 : 0.22, dark ? 'lighter' : 'source-over');
-    if (S.mx > 0) {
-      const g = ctx.createRadialGradient(S.mx, S.my, 0, S.mx, S.my, 220);
-      g.addColorStop(0, dark ? 'rgba(255,255,255,.12)' : 'rgba(90,190,150,.18)');
-      g.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.fillStyle = g;
-      ctx.fillRect(S.mx - 220, S.my - 220, 440, 440);
-    }
-    drawParts(dark);
+    blobs(list, 0.5, 'source-over');
+    ribbons(9, '100,145,80', 0.7, 'source-over');
+    drawParts();
+  }
+  function drawEspresso() {
+    fillBase('#120a06', '#2b1a11');
+    const list = [
+      { c: '201,124,56', x: 0.22, y: 0.3, ax: 0.1, ay: 0.1, s: 0.1, r: 0.48, par: 0.14 },
+      { c: '130,66,38', x: 0.8, y: 0.35, ax: 0.1, ay: 0.1, s: 0.08, r: 0.5, par: -0.12 },
+      { c: '255,214,170', x: 0.6, y: 0.88, ax: 0.12, ay: 0.05, s: 0.12, r: 0.34, par: 0.18 }
+    ];
+    blobs(list, 0.38, 'lighter');
+    ribbons(9, '235,175,105', 0.5, 'lighter');
+    const g = ctx.createLinearGradient(0, 0, S.w, S.h);
+    g.addColorStop(0, 'rgba(255,255,255,.07)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0)');
+    g.addColorStop(1, 'rgba(255,214,170,.06)');
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S.w, S.h);
+    drawParts();
   }
   function draw() {
-    const dark = isDark();
     if (mode === 'neon') drawNeon();
-    else if (mode === 'minimal') drawMinimal(dark);
-    else drawAurora(true);
+    else if (mode === 'matcha') drawMatcha();
+    else if (mode === 'espresso') drawEspresso();
+    else drawEmerald();
   }
   function frame(ts) {
     const dt = Math.min(0.05, (ts - (S.last || ts)) / 1000);
@@ -1074,12 +1114,10 @@ function imageLuminance(src) {
   });
 }
 function bgTone(b) {
-  if (b.mode === 'aurora' || b.mode === 'neon') return 'dark';
-  if (b.mode === 'image') {
-    const lum = b.lum == null ? 0.4 : Number(b.lum);
-    return lum * (1 - (b.dim / 100) * 1.1) > 0.55 ? 'light' : 'dark';
-  }
-  return 'auto';
+  if (b.mode === 'matcha') return 'light';
+  if (b.mode !== 'image') return 'dark';
+  const lum = b.lum == null ? 0.4 : Number(b.lum);
+  return lum * (1 - (b.dim / 100) * 1.1) > 0.55 ? 'light' : 'dark';
 }
 function applyTone(b) {
   const cl = document.body.classList;
@@ -1089,7 +1127,7 @@ function applyTone(b) {
   else if (t === 'light') cl.add('bg-glass-light');
 }
 function bgMarkup(mode, image) {
-  if (mode === 'aurora' || mode === 'neon' || mode === 'minimal') return '<canvas class="bg-canvas"></canvas>';
+  if (mode !== 'image') return '<canvas class="bg-canvas"></canvas>';
   if (mode === 'image' && image) return '<div class="wallpaper"></div><div class="wallpaper-dim"></div>';
   return '';
 }
@@ -1098,7 +1136,7 @@ function applyBackground() {
   if (!box) return;
   stopBgEngine();
   const b = getBg();
-  ['aurora', 'neon', 'minimal', 'static', 'image'].forEach(m => document.body.classList.remove('bg-' + m));
+  ['emerald', 'neon', 'matcha', 'espresso', 'image'].forEach(m => document.body.classList.remove('bg-' + m));
   document.body.classList.add('bg-' + b.mode);
   applyTone(b);
   box.style.setProperty('--wp-dim', (b.dim / 100).toFixed(2));
@@ -1383,7 +1421,12 @@ function placeOrder(order, cartItems) {
 function updateOrderStatus(id, status) {
   const orders = getOrders();
   const o = orders.find(x => x.id === id);
-  if (o) { o.status = status; dbSet(KEYS.orders, orders); }
+  if (o) {
+    o.status = status;
+    if (status === 'selesai') o.selesaiTs = Date.now();
+    else delete o.selesaiTs;
+    dbSet(KEYS.orders, orders);
+  }
 }
 function summarize(orders) {
   const selesai = orders.filter(o => o.status === 'selesai');
@@ -1426,6 +1469,51 @@ function fmtDateKey(k) {
   const p = k.split('-');
   return p[2] + '/' + p[1] + '/' + p[0];
 }
+function fmtDateId(ts) {
+  const d = new Date(ts);
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+}
+function fmtTimeId(ts) {
+  const d = new Date(ts);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+function periodRange(mode, dateStr) {
+  const s = new Date();
+  s.setHours(0, 0, 0, 0);
+  let e = new Date(s);
+  let label = '';
+  if (mode === 'yesterday') {
+    s.setDate(s.getDate() - 1);
+    e = new Date(s);
+    e.setDate(e.getDate() + 1);
+    label = 'Kemarin (' + fmtDateId(s) + ')';
+  } else if (mode === 'week') {
+    s.setDate(s.getDate() - ((s.getDay() + 6) % 7));
+    e = new Date(s);
+    e.setDate(e.getDate() + 7);
+    const last = new Date(e);
+    last.setDate(last.getDate() - 1);
+    label = 'Minggu Ini (' + fmtDateId(s) + ' - ' + fmtDateId(last) + ')';
+  } else if (mode === 'month') {
+    s.setDate(1);
+    e = new Date(s.getFullYear(), s.getMonth() + 1, 1);
+    label = 'Bulan Ini (' + s.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }) + ')';
+  } else if (mode === 'date') {
+    const p = String(dateStr || todayKey()).split('-');
+    s.setFullYear(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    e = new Date(s);
+    e.setDate(e.getDate() + 1);
+    label = 'Tanggal ' + fmtDateId(s);
+  } else {
+    e.setDate(e.getDate() + 1);
+    label = 'Hari Ini (' + fmtDateId(s) + ')';
+  }
+  return { start: s.getTime(), end: e.getTime(), label: label };
+}
+function filterOrdersByRange(orders, mode, date) {
+  const r = periodRange(mode, date);
+  return orders.filter(o => o.ts >= r.start && o.ts < r.end);
+}
 function filterOrdersByPeriod(orders, mode, date) {
   if (mode === 'all') return orders;
   const key = mode === 'today' ? todayKey() : mode === 'yesterday' ? yesterdayKey() : date;
@@ -1465,6 +1553,14 @@ function topToppings(orders) {
 function printPage() {
   document.body.classList.remove('print-receipt');
   window.print();
+}
+function resetSettingsSecure(password) {
+  if (!password || password !== getOwnerCred().password) return false;
+  [KEYS.theme, KEYS.bg, KEYS.logo, KEYS.storeName, KEYS.runningText, KEYS.qris, KEYS.seblakBase, KEY_LANG].forEach(k => {
+    try { localStorage.removeItem(k); } catch (e) {}
+  });
+  initDB();
+  return true;
 }
 function resetOrdersSecure(password) {
   if (!password || password !== getOwnerCred().password) return false;
@@ -1734,12 +1830,43 @@ function queueData() {
   const today = getOrders().filter(o => dateKey(o.ts) === tk);
   return {
     proses: today.filter(o => o.status !== 'selesai').sort((a, b) => a.no - b.no),
-    selesai: today.filter(o => o.status === 'selesai').sort((a, b) => b.no - a.no).slice(0, 10)
+    selesai: getOrders()
+      .filter(o => o.status === 'selesai' && dateKey(o.selesaiTs || o.ts) === tk)
+      .sort((a, b) => (b.selesaiTs || b.ts) - (a.selesaiTs || a.ts))
   };
 }
 function queueService(o) {
   if (o.tipe === SERVICE_TYPES.delivery) return '🛵 ' + o.tipe;
   return (o.tipe === SERVICE_TYPES.bungkus ? '🥡 ' : '🍽️ ') + o.tipe + ' • Meja ' + o.meja;
+}
+function flyToCart(srcEl, label) {
+  const cartBtn = document.querySelector('.cart-float');
+  if (!cartBtn) return;
+  const bounce = () => {
+    cartBtn.classList.remove('cart-bounce');
+    void cartBtn.offsetWidth;
+    cartBtn.classList.add('cart-bounce');
+    setTimeout(() => cartBtn.classList.remove('cart-bounce'), 700);
+  };
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!srcEl || reduce) { bounce(); return; }
+  const a = srcEl.getBoundingClientRect();
+  const b = cartBtn.getBoundingClientRect();
+  const dx = b.left + b.width / 2 - (a.left + a.width / 2);
+  const dy = b.top + b.height / 2 - (a.top + a.height / 2);
+  const chip = document.createElement('div');
+  chip.className = 'fly-chip';
+  chip.textContent = label;
+  chip.style.left = a.left + a.width / 2 + 'px';
+  chip.style.top = a.top + a.height / 2 + 'px';
+  document.body.appendChild(chip);
+  if (!chip.animate) { chip.remove(); bounce(); return; }
+  const anim = chip.animate([
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+    { transform: 'translate(calc(-50% + ' + dx * 0.5 + 'px), calc(-50% + ' + (dy * 0.5 - 90) + 'px)) scale(1.12)', opacity: 1, offset: 0.5 },
+    { transform: 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px)) scale(0.3)', opacity: 0.3 }
+  ], { duration: 780, easing: 'cubic-bezier(.4, .1, .3, 1)' });
+  anim.onfinish = function () { chip.remove(); bounce(); };
 }
 function updateQueueBadge() {
   const n = queueData().proses.length;
@@ -1753,7 +1880,7 @@ function queueRowHtml(o, done) {
         <div class="queue-name">${esc(o.nama)}</div>
         <div class="queue-svc">${esc(queueService(o))}</div>
       </div>
-      <span class="badge ${done ? 'bg-success' : 'bg-warning text-dark'}">${done ? 'Selesai' : 'Diproses'}</span>
+      <span class="badge ${done ? 'bg-success' : 'bg-warning text-dark'}">${done ? 'Selesai • ' + fmtTimeId(o.selesaiTs || o.ts) : 'Diproses'}</span>
     </div>`;
 }
 function renderQueue() {
@@ -2066,7 +2193,7 @@ function renderDisplaySettings(el) {
   });
   el.querySelector('#btnWallpaperDel').addEventListener('click', function () {
     const raw = dbGet(KEYS.bg, BG_DEFAULT) || BG_DEFAULT;
-    setBg({ mode: raw.mode === 'image' ? 'aurora' : raw.mode, image: '', lum: null });
+    setBg({ mode: raw.mode === 'image' ? 'emerald' : raw.mode, image: '', lum: null });
     syncBg();
     toast('Wallpaper dihapus.');
   });

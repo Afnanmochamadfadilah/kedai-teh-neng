@@ -95,7 +95,8 @@
 
   <div class="modal fade" id="modalSukses" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content text-center p-4">
+      <div class="modal-content text-center p-4 position-relative">
+        <button type="button" class="modal-x" data-bs-dismiss="modal" aria-label="Tutup" title="Tutup">&times;</button>
         <div style="font-size:4rem">✅</div>
         <h4 class="fw-bold">Pesanan Terkirim!</h4>
         <p class="mb-1">Nomor Pesanan: <strong id="sukses-no"></strong></p>
@@ -179,7 +180,7 @@
               </div>
               <div class="price my-2">${rupiah(m.harga)}</div>
               <button class="btn ${tersisa <= 0 ? 'btn-secondary' : 'btn-teh'} btn-sm mt-auto" ${tersisa <= 0 ? 'disabled' : ''}
-                      onclick="tambah(${m.id})">${btnLabel}</button>
+                      onclick="tambah(${m.id}, this)">${btnLabel}</button>
             </div>
           </div>
         </div>`;
@@ -219,7 +220,7 @@
             <div class="fs-4 price" id="seblakHarga">${rupiah(seblakTotal())}</div>
             <div class="small text-secondary" id="seblakJumlah">${selectedTop.size} topping dipilih</div>
           </div>
-          <button class="btn btn-teh btn-lg" onclick="tambahSeblak()">+ Tambah Seblak</button>
+          <button class="btn btn-teh btn-lg" onclick="tambahSeblak(this)">+ Tambah Seblak</button>
         </div>`;
     }
 
@@ -233,12 +234,13 @@
       if (j) j.textContent = selectedTop.size + ' topping dipilih';
     }
 
-    function tambahSeblak() {
+    function tambahSeblak(btn) {
       if (!selectedTop.size) { alert('Pilih minimal satu topping seblak.'); return; }
       const err = cartAddSeblak([...selectedTop]);
       if (err) { alert(err); return; }
       selectedTop.clear();
       renderCart();
+      flyToCart(btn, '🌶️ +1 Seblak');
     }
 
     function renderSeblak(box) {
@@ -302,10 +304,13 @@
         : '<p class="text-center text-secondary my-5">Belum ada menu pada kategori ini.</p>';
     }
 
-    function tambah(id) {
+    function tambah(id, btn) {
       const err = cartAddMenu(id);
-      if (err) alert(err);
+      if (err) { alert(err); renderCart(); return; }
       renderCart();
+      const m = getMenu().find(x => x.id === id);
+      const nama = m ? (m.nama.length > 18 ? m.nama.slice(0, 17) + '…' : m.nama) : 'Menu';
+      flyToCart(btn, '🛒 +1 ' + nama);
     }
     function ubah(i, d) {
       const err = cartChangeAt(i, d);

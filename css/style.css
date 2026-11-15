@@ -179,11 +179,10 @@ body.page-portal {
   display: block;
 }
 
-body.page-portal.bg-static { animation: none; background: #f3f8f4; }
-[data-bs-theme="dark"] body.page-portal.bg-static { background: #111815; }
-body.page-portal.bg-aurora,
+body.page-portal.bg-emerald,
 body.page-portal.bg-neon,
-body.page-portal.bg-minimal { animation: none; }
+body.page-portal.bg-matcha,
+body.page-portal.bg-espresso { animation: none; }
 body.page-portal.bg-image { animation: none; background: #14110f; }
 
 .bg-anim .wallpaper {
@@ -349,6 +348,15 @@ body.bg-glass-light main .btn-outline-success,
 body.bg-glass-light main .btn-outline-secondary,
 body.bg-glass-light main .btn-outline-primary { color: #12201a; border-color: rgba(18, 32, 26, .45); }
 
+body.bg-espresso .start-card,
+body.bg-espresso main .card { background: rgba(48, 27, 15, .48); border-color: rgba(255, 214, 170, .28); }
+body.bg-espresso .top-login .btn,
+body.bg-espresso .btn-queue { background: rgba(48, 27, 15, .5); border-color: rgba(255, 214, 170, .4); }
+body.bg-emerald .start-card,
+body.bg-emerald main .card { background: rgba(3, 30, 22, .5); border-color: rgba(226, 190, 90, .32); }
+body.bg-emerald .top-login .btn,
+body.bg-emerald .btn-queue { background: rgba(3, 30, 22, .55); border-color: rgba(226, 190, 90, .45); }
+
 .bg-options { display: grid; gap: 8px; }
 .bg-option {
   display: flex;
@@ -373,10 +381,10 @@ body.bg-glass-light main .btn-outline-primary { color: #12201a; border-color: rg
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, .1);
 }
-.bg-swatch-aurora { background: radial-gradient(circle at 25% 30%, rgba(240, 180, 60, .9) 0 8%, transparent 9%), radial-gradient(circle at 20% 20%, #52b788, transparent 60%), radial-gradient(circle at 85% 40%, #f4a261, transparent 60%), #d8f3dc; }
+.bg-swatch-emerald { background: radial-gradient(circle at 30% 30%, rgba(212, 175, 55, .9) 0 7%, transparent 8%), radial-gradient(circle at 75% 70%, #10b981, transparent 60%), linear-gradient(135deg, #03130d, #0a2b22); }
 .bg-swatch-neon { background: linear-gradient(transparent 55%, rgba(255, 60, 214, .55) 56% 58%, transparent 59%), linear-gradient(120deg, transparent 30%, #00f0ff 31% 34%, transparent 35%), linear-gradient(135deg, #04070f, #1a1040); }
-.bg-swatch-minimal { background: radial-gradient(circle at 30% 35%, #fff 0 8%, transparent 9%), radial-gradient(circle at 70% 65%, #fff 0 10%, transparent 11%), #cfeedd; }
-.bg-swatch-static { background: linear-gradient(135deg, #fffaf0, #e9f7ef); }
+.bg-swatch-matcha { background: radial-gradient(circle at 25% 30%, #bcdc96, transparent 55%), radial-gradient(circle at 80% 75%, #ece2a8, transparent 55%), #edf5e4; }
+.bg-swatch-espresso { background: radial-gradient(circle at 70% 30%, rgba(201, 124, 56, .75), transparent 55%), linear-gradient(135deg, #120a06, #2b1a11); }
 .bg-swatch-image { background: linear-gradient(135deg, #4a4e69, #9a8c98 50%, #c9ada7); }
 .wallpaper-thumb-wrap { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .wp-dim-wrap { margin-top: 12px; }
@@ -745,4 +753,50 @@ img { max-width: 100%; }
   body.print-receipt #receiptArea { display: block !important; }
   body.print-receipt .receipt { width: 72mm; }
   body.print-receipt > *:not(#receiptArea) { display: none !important; }
+}
+
+.fly-chip {
+  position: fixed;
+  z-index: 3000;
+  pointer-events: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: .85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .3);
+  will-change: transform, opacity;
+}
+.cart-bounce { animation: cartBounce .6s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes cartBounce {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.22); }
+  55%  { transform: scale(.92); }
+  78%  { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+.modal-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(127, 127, 127, .16);
+  color: inherit;
+  font-size: 1.6rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+.modal-x:hover, .modal-x:focus-visible { background: rgba(127, 127, 127, .32); transform: rotate(90deg); }
+.rekap-filter .form-select, .rekap-filter .form-control { min-height: 40px; }
+@media (prefers-reduced-motion: reduce) {
+  .cart-bounce { animation: none; }
 }
